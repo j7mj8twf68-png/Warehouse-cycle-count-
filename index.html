@@ -918,7 +918,7 @@ function App() {
   const rFilt=rRows.filter(r=>rptW==="all"||r.workerName===rptW).filter(r=>!rptP||r.partNum.toLowerCase().includes(rptP.toLowerCase())).sort((a,b)=>{const av=typeof a[rptS.col]==="string"?a[rptS.col].toLowerCase():(a[rptS.col]??0),bv=typeof b[rptS.col]==="string"?b[rptS.col].toLowerCase():(b[rptS.col]??0);return av<bv?(rptS.dir==="asc"?-1:1):av>bv?(rptS.dir==="asc"?1:-1):0;});
   const togSort=(col)=>setRptS(s=>({col,dir:s.col===col&&s.dir==="asc"?"desc":"asc"}));
   const si=(col)=>rptS.col===col?(rptS.dir==="asc"?" ▲":" ▼"):"";
-  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Desc:r.description,Loc:r.location,"Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
+  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Loc:r.location,"Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
 
   // ── styles ────────────────────────────────────────────────────────────────
   const pad  = mob?16:24;
@@ -1608,12 +1608,11 @@ function App() {
                   </div>
                   <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
                     <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?11:12,minWidth:mob?460:"auto" }}>
-                      <thead><tr>{["Part #","Desc","Loc","Counted","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"7px 9px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
+                      <thead><tr>{["Part #","Loc","Counted","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"7px 9px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
                       <tbody>
                         {list.items.map(i=>(
                           <tr key={i.id}>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht }}>{i.partNum}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,color:C.lt,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{i.description||"—"}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{i.location||"—"}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht }}>{i.countedQty||"—"}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}` }}>
@@ -1680,12 +1679,11 @@ function App() {
               <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
                 <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?620:"auto" }}>
-                    <thead><tr>{[["partNum","Part #"],["description","Desc"],["location","Loc"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
+                    <thead><tr>{[["partNum","Part #"],["location","Loc"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
                     <tbody>
                       {rFilt.map((r,i)=>(
                         <tr key={i} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{r.partNum}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.lt,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{r.description||"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{r.location||"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:14 }}>{r.countedQty}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
