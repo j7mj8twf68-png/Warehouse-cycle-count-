@@ -126,6 +126,7 @@ const DB = {
     };
   },
   async addWorker(w) { return SB.from('workers').insert({id:w.id,name:w.name,pin:w.pin,role:w.role}); },
+  async updateWorker(id,fields) { return SB.from('workers').update(fields).eq('id',id); },
   async removeWorker(id) { return SB.from('workers').delete().eq('id',id); },
   async upsertFile(f) { return SB.from('inv_files').upsert({id:f.id,name:f.name,rows:f.rows,headers:f.headers,pn_col:f.pnCol||'',d_col:f.dCol||'',q_col:f.qCol||'',l_col:f.lCol||'',uploaded_at:f.uploadedAt}); },
   async updateFileCols(id,c) { return SB.from('inv_files').update({pn_col:c.pnCol||'',d_col:c.dCol||'',q_col:c.qCol||'',l_col:c.lCol||''}).eq('id',id); },
@@ -176,7 +177,7 @@ const C = {
 const FAM = "'Barlow Condensed','Arial Narrow',Arial,sans-serif";
 
 const DEFAULT_WORKERS = [
-  { id:"admin", name:"Admin",    pin:"0000", role:"admin"  },
+  { id:"admin", name:"Manager",  pin:"0000", role:"admin"  },
   { id:"lead1", name:"Lead",     pin:"9999", role:"lead"   },
   { id:"w1",    name:"Worker 1", pin:"1111", role:"worker" },
   { id:"w2",    name:"Worker 2", pin:"2222", role:"worker" },
@@ -247,7 +248,7 @@ function PinPad({ workers, onSuccess }) {
   const mob = useWidth() < 600;
 
   const roleColor = (r)=> r==="admin"?C.red : r==="lead"?C.warn : C.mid;
-  const roleLbl   = (r)=> r==="admin"?"Admin" : r==="lead"?"Lead" : "Worker";
+  const roleLbl   = (r)=> r==="admin"?"Manager" : r==="lead"?"Lead" : "Worker";
 
   // sort: admins, then leads, then workers
   const order = { admin:0, lead:1, worker:2 };
@@ -744,6 +745,11 @@ function App() {
   const [toast,         setToast]         = useState(null);
   const [nwName,        setNwName]        = useState("");
   const [nwPin,         setNwPin]         = useState("");
+  const [nwRole,        setNwRole]        = useState("worker");
+  const [editId,        setEditId]        = useState(null);
+  const [edName,        setEdName]        = useState("");
+  const [edPin,         setEdPin]         = useState("");
+  const [edRole,        setEdRole]        = useState("worker");
   const [rptW,          setRptW]          = useState("all");
   const [rptP,          setRptP]          = useState("");
   const [rptS,          setRptS]          = useState({ col:"partNum", dir:"asc" });
@@ -942,12 +948,27 @@ function App() {
     if(!nwName.trim()){showToast("Enter a name","err");return;}
     if(!nwPin.match(/^\d{4,6}$/)){showToast("PIN must be 4–6 digits","err");return;}
     if(workers.find(w=>w.pin===nwPin)){showToast("PIN taken","err");return;}
-    const w={id:uid(),name:nwName.trim(),pin:nwPin,role:"worker"};
+    const w={id:uid(),name:nwName.trim(),pin:nwPin,role:nwRole};
     const {error}=await DB.addWorker(w);
     if(error){showToast("Failed: "+error.message,"err");return;}
-    setNwName("");setNwPin("");showToast(`Added ${w.name}`);
+    setNwName("");setNwPin("");setNwRole("worker");showToast(`Added ${w.name}`);
   };
-  const removeWorker=async(id)=>{ if(id==="admin"){showToast("Cannot remove admin","err");return;} await DB.removeWorker(id); showToast("Removed"); };
+  const removeWorker=async(id)=>{ if(id==="admin"){showToast("Cannot remove the main Manager","err");return;} await DB.removeWorker(id); showToast("Removed"); };
+  const startEdit=(w)=>{ setEditId(w.id); setEdName(w.name); setEdPin(w.pin); setEdRole(w.role); };
+  const cancelEdit=()=>{ setEditId(null); setEdName(""); setEdPin(""); setEdRole("worker"); };
+  const saveEdit=async(id)=>{
+    if(!edName.trim()){showToast("Enter a name","err");return;}
+    if(!edPin.match(/^\d{4,6}$/)){showToast("PIN must be 4–6 digits","err");return;}
+    if(workers.find(w=>w.pin===edPin&&w.id!==id)){showToast("PIN taken","err");return;}
+    // Don't allow removing the last Manager
+    const isLastManager = id==="admin";
+    const role = isLastManager ? "admin" : edRole; // keep main account as Manager
+    const {error}=await DB.updateWorker(id,{name:edName.trim(),pin:edPin,role});
+    if(error){showToast("Failed: "+error.message,"err");return;}
+    showToast(`Updated ${edName.trim()}`); cancelEdit();
+  };
+  const roleLbl=(r)=>r==="admin"?"Manager":r==="lead"?"Lead":"Worker";
+  const roleClr=(r)=>r==="admin"?C.red:r==="lead"?C.warn:C.muted;
   const expList=(list)=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(list.items.map(i=>({Part:i.partNum,Desc:i.description,Loc:i.location,Counted:i.countedQty||"",Status:i.status,At:i.countedAt||"",Note:i.note}))),"Count"); XLSX.writeFile(wb,`count_${list.name.replace(/\s/g,"_")}.xlsx`); };
 
   // ── report ────────────────────────────────────────────────────────────────
@@ -1003,7 +1024,7 @@ function App() {
   const NAV=isAdmin?aN:wN;
   const AK =isAdmin?tab:wtab;
   const SA =isAdmin?setTab:(k)=>{ if(k==="lists")setActiveId(null); setWtab(k); };
-  const roleLabel = user.role==="admin"?"Admin":user.role==="lead"?"Lead":"Worker";
+  const roleLabel = user.role==="admin"?"Manager":user.role==="lead"?"Lead":"Worker";
 
   const Header=()=>(
     <header style={{ background:`linear-gradient(180deg, ${C.dk} 0%, ${C.blk} 100%)`,borderBottom:`3px solid ${C.red}`,padding:`0 ${pad}px`,display:"flex",alignItems:"stretch",minHeight:56,fontFamily:FAM,boxShadow:"0 2px 12px rgba(0,0,0,0.4)",position:"sticky",top:0,zIndex:50 }}>
@@ -1446,29 +1467,57 @@ function App() {
         {tab==="workers"&&(
           <div>
             <div style={PT}><span style={RB}/>Workers</div>
-            <div style={PS}>Manage worker accounts and PINs</div>
+            <div style={PS}>Manage accounts — name, PIN, and title</div>
             <div style={CARD}>
-              <div style={TC}>
-                <div><label style={LBL}>Name</label><input style={INP(mob)} placeholder="Worker name" value={nwName} onChange={e=>setNwName(e.target.value)}/></div>
+              <div style={{ display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:12,marginBottom:14 }}>
+                <div><label style={LBL}>Name</label><input style={INP(mob)} placeholder="Full name" value={nwName} onChange={e=>setNwName(e.target.value)}/></div>
                 <div><label style={LBL}>PIN (4–6 digits)</label><input style={INP(mob)} placeholder="e.g. 4729" type="text" inputMode="numeric" maxLength={6} value={nwPin} onChange={e=>setNwPin(e.target.value.replace(/\D/g,""))}/></div>
+                <div><label style={LBL}>Title</label>
+                  <select style={INP(mob)} value={nwRole} onChange={e=>setNwRole(e.target.value)}>
+                    <option value="worker">Worker</option>
+                    <option value="lead">Lead</option>
+                    <option value="admin">Manager</option>
+                  </select>
+                </div>
               </div>
-              <button style={{ ...BT("pri"),fontSize:mob?14:12 }} onClick={addWorker}>+ Add Worker</button>
+              <button style={{ ...BT("pri"),fontSize:mob?14:12 }} onClick={addWorker}>+ Add Person</button>
             </div>
             <div style={{ display:"grid",gap:10 }}>
-              {workers.map(w=>{ const wL=lists.filter(l=>l.assignedTo===w.id&&!l.submitted).length; return (
+              {workers.map(w=>{ const wL=lists.filter(l=>l.assignedTo===w.id&&!l.submitted).length; const editing=editId===w.id; return (
                 <div key={w.id} style={{ ...FLAT,marginBottom:0 }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:12 }}>
-                    <Avtr name={w.name} bg={w.role==="admin"?C.redDk:C.mid} sz={mob?38:32}/>
-                    <div style={{ flex:1,minWidth:0 }}>
-                      <div style={{ fontSize:mob?16:14,fontWeight:900,color:C.wht }}>{w.name}</div>
-                      <div style={{ display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap" }}>
-                        <Badge label={w.role} color={w.role==="admin"?C.red:C.muted}/>
-                        <span style={{ fontSize:11,color:C.muted }}>{"●".repeat(w.pin.length)} PIN</span>
-                        {wL>0&&<Badge label={`${wL} active`} color={C.warn}/>}
+                  {editing?(
+                    <div>
+                      <div style={{ display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr 1fr",gap:12,marginBottom:12 }}>
+                        <div><label style={LBL}>Name</label><input style={INP(mob)} value={edName} onChange={e=>setEdName(e.target.value)}/></div>
+                        <div><label style={LBL}>PIN</label><input style={INP(mob)} type="text" inputMode="numeric" maxLength={6} value={edPin} onChange={e=>setEdPin(e.target.value.replace(/\D/g,""))}/></div>
+                        <div><label style={LBL}>Title</label>
+                          <select style={{ ...INP(mob),opacity:w.id==="admin"?0.5:1 }} value={edRole} disabled={w.id==="admin"} onChange={e=>setEdRole(e.target.value)}>
+                            <option value="worker">Worker</option>
+                            <option value="lead">Lead</option>
+                            <option value="admin">Manager</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex",gap:10 }}>
+                        <button style={{ ...BT("pri"),fontSize:mob?14:12 }} onClick={()=>saveEdit(w.id)}>Save</button>
+                        <button style={{ ...BT("ghost"),fontSize:mob?14:12 }} onClick={cancelEdit}>Cancel</button>
                       </div>
                     </div>
-                    {w.id!=="admin"&&<button style={{ ...BT("ghost"),fontSize:mob?12:10,padding:mob?"8px 14px":"3px 10px",color:C.err }} onClick={()=>removeWorker(w.id)}>Remove</button>}
-                  </div>
+                  ):(
+                    <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+                      <Avtr name={w.name} bg={roleClr(w.role)===C.muted?C.mid:roleClr(w.role)} sz={mob?38:32}/>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ fontSize:mob?16:14,fontWeight:900,color:C.wht }}>{w.name}</div>
+                        <div style={{ display:"flex",gap:8,marginTop:3,alignItems:"center",flexWrap:"wrap" }}>
+                          <Badge label={roleLbl(w.role)} color={roleClr(w.role)}/>
+                          <span style={{ fontSize:11,color:C.muted }}>{"●".repeat(w.pin.length)} PIN</span>
+                          {wL>0&&<Badge label={`${wL} active`} color={C.warn}/>}
+                        </div>
+                      </div>
+                      <button style={{ ...BT("out"),fontSize:mob?12:10,padding:mob?"8px 14px":"3px 10px" }} onClick={()=>startEdit(w)}>Edit</button>
+                      {w.id!=="admin"&&<button style={{ ...BT("ghost"),fontSize:mob?12:10,padding:mob?"8px 14px":"3px 10px",color:C.err }} onClick={()=>removeWorker(w.id)}>Remove</button>}
+                    </div>
+                  )}
                 </div>
               );})}
             </div>
