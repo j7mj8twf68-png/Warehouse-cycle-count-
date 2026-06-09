@@ -737,25 +737,27 @@ function App() {
         if(!rows.length){showToast("No data found","err");return;}
         const cols=Object.keys(rows[0]);
         const find=kw=>cols.find(c=>kw.some(k=>c.toLowerCase().includes(k)))||"";
+        // ID derived from filename → same file always overwrites, never duplicates
+        const fileId = "file_" + file.name.toLowerCase().replace(/[^a-z0-9]/g,"_");
+        const existing = invFiles.find(f=>f.id===fileId);
         const newFile = {
-          id: uid(),
+          id: fileId,
           name: file.name,
           rows,
           headers: cols,
-          pnCol: find(["part","item","sku","number","pn","id"]),
-          dCol:  find(["desc","name","title","product"]),
-          qCol:  find(["qty","quant","stock","on hand","onhand"]),
-          lCol:  find(["loc","bin","slot","warehouse","aisle","rack"]),
+          // preserve existing column mapping if re-uploading
+          pnCol: existing?.pnCol || find(["part","item","sku","number","pn","id"]),
+          dCol:  existing?.dCol  || find(["desc","name","title","product"]),
+          qCol:  existing?.qCol  || find(["qty","quant","stock","on hand","onhand"]),
+          lCol:  existing?.lCol  || find(["loc","bin","slot","warehouse","aisle","rack"]),
           uploadedAt: nowStr(),
         };
-        const exists = invFiles.find(f=>f.name===file.name);
-        if(exists) newFile.id = exists.id;
         await DB.upsertFile(newFile);
         setActiveFileId(newFile.id);
         setAssignFileId(newFile.id);
         setTab("setup");
         showToast(`Loaded ${rows.length} items from ${file.name}`);
-      }catch{showToast("Could not read file","err");}
+      }catch(err){console.error(err);showToast("Could not read file","err");}
     };
     r.readAsArrayBuffer(file);
   },[]);
@@ -1128,7 +1130,7 @@ function App() {
                                 onClick={async()=>{ if(!window.confirm(`Reset progress tracker for ${f.name}? History is kept.`)) return; const c=(fileCycles[f.id]?.cycle||1)+1; await DB.upsertCycle(f.id,c,[],fileCycles[f.id]?.lastCompleted||null); showToast("Progress reset"); }}>↺</button>
                             )}
                             <button style={{ ...BT("ghost"), fontSize:10, padding:"5px 10px", color:C.err, minHeight:34 }}
-                              onClick={()=>{ if(!window.confirm(`Remove ${f.name}?`)) return; setInvFiles(prev=>prev.filter(x=>x.id!==f.id)); if(activeFileId===f.id){ const rem=invFiles.filter(x=>x.id!==f.id); setActiveFileId(rem[0]?.id||null); setAssignFileId(rem[0]?.id||""); } showToast(`Removed ${f.name}`); }}>✕</button>
+                              onClick={async()=>{ if(!window.confirm(`Remove ${f.name}?`)) return; await DB.deleteFile(f.id); if(activeFileId===f.id){ const rem=invFiles.filter(x=>x.id!==f.id); setActiveFileId(rem[0]?.id||null); setAssignFileId(rem[0]?.id||""); } showToast(`Removed ${f.name}`); }}>✕</button>
                           </div>
                         </div>
 
