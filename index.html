@@ -112,7 +112,7 @@ const DB = {
     ]);
     const mapWorker = r => ({id:r.id,name:r.name,pin:r.pin,role:r.role});
     const mapFile   = r => ({id:r.id,name:r.name,rows:r.rows,headers:r.headers,pnCol:r.pn_col,dCol:r.d_col,qCol:r.q_col,lCol:r.l_col,uploadedAt:r.uploaded_at});
-    const mapList   = r => ({id:r.id,name:r.name,assignedTo:r.assigned_to,assignedName:r.assigned_name,createdAt:r.created_at,createdBy:r.created_by,sourceFile:r.source_file,sourceFileId:r.source_file_id,items:r.items,submitted:r.submitted,submittedAt:r.submitted_at});
+    const mapList   = r => ({id:r.id,name:r.name,assignedTo:r.assigned_to,assignedName:r.assigned_name,createdAt:r.created_at,createdBy:r.created_by,sourceFile:r.source_file,sourceFileId:r.source_file_id,items:r.items,submitted:r.submitted,submittedAt:r.submitted_at,completed:r.completed||false,completedAt:r.completed_at,completedBy:r.completed_by});
     const mapTxn    = r => ({id:r.id,partNum:r.part_num,description:r.description,location:r.location,workerQty:r.worker_qty,workerName:r.worker_name,listName:r.list_name,countedAt:r.counted_at,note:r.note||'',systemQty:r.system_qty||'',adjustment:r.adjustment,status:r.status,postedAt:r.posted_at,sourceListId:r.source_list_id});
     const fcMap = {};
     (fc.data||[]).forEach(r=>{fcMap[r.file_id]={cycle:r.cycle,counted:r.counted||[],lastCompleted:r.last_completed};});
@@ -134,7 +134,8 @@ const DB = {
   async insertList(l) { return SB.from('assigned_lists').insert({id:l.id,name:l.name,assigned_to:l.assignedTo,assigned_name:l.assignedName,created_at:l.createdAt,created_by:l.createdBy,source_file:l.sourceFile||null,source_file_id:l.sourceFileId||null,items:l.items,submitted:false,submitted_at:null}); },
   async updateItems(id,items) { return SB.from('assigned_lists').update({items}).eq('id',id); },
   async submitList(id,items,at) { return SB.from('assigned_lists').update({items,submitted:true,submitted_at:at}).eq('id',id); },
-  async insertHistory(l) { return SB.from('count_history').upsert({id:l.id,name:l.name,assigned_to:l.assignedTo,assigned_name:l.assignedName,created_at:l.createdAt,created_by:l.createdBy||null,source_file:l.sourceFile||null,source_file_id:l.sourceFileId||null,items:l.items,submitted:true,submitted_at:l.submittedAt}); },
+  async markCompleted(id,items,at,by) { return SB.from('assigned_lists').update({items,completed:true,completed_at:at,completed_by:by}).eq('id',id); },
+  async insertHistory(l) { return SB.from('count_history').upsert({id:l.id,name:l.name,assigned_to:l.assignedTo,assigned_name:l.assignedName,created_at:l.createdAt,created_by:l.completedBy||l.createdBy||null,source_file:l.sourceFile||null,source_file_id:l.sourceFileId||null,items:l.items,submitted:true,submitted_at:l.completedAt||l.submittedAt}); },
   async insertTxns(txns) {
     if(!txns.length) return;
     await SB.from('transactions').delete().eq('source_list_id',txns[0].sourceListId);
@@ -168,6 +169,7 @@ const FAM = "'Barlow Condensed','Arial Narrow',Arial,sans-serif";
 
 const DEFAULT_WORKERS = [
   { id:"admin", name:"Admin",    pin:"0000", role:"admin"  },
+  { id:"lead1", name:"Lead",     pin:"9999", role:"lead"   },
   { id:"w1",    name:"Worker 1", pin:"1111", role:"worker" },
   { id:"w2",    name:"Worker 2", pin:"2222", role:"worker" },
 ];
@@ -840,23 +842,14 @@ function App() {
     const done=finalItems.filter(i=>i.status!=="pending");
     if(!done.length){showToast("Count at least one item first","err");return;}
 
-    const submitted={...listMeta,items:finalItems,submitted:true,submittedAt:nowStr()};
+    const submittedAt = nowStr();
+    const submitted={...listMeta,items:finalItems,submitted:true,submittedAt};
     const counted=finalItems.filter(i=>i.status==="counted");
-    const newTxns=counted.map(i=>({
-      id:uid(),partNum:i.partNum,description:i.description,location:i.location,
-      workerQty:Number(i.countedQty),workerName:listMeta.assignedName,listName:listMeta.name,
-      countedAt:i.countedAt,note:i.note,systemQty:"",adjustment:null,
-      status:"pending",postedAt:null,sourceListId:activeId,
-    }));
 
-    const nLists   = lists.map(l=>l.id===activeId?submitted:l);
-    const nHistory = history.find(s=>s.id===activeId)?history:[submitted,...history];
-    const nTxns    = [...newTxns,...txns.filter(t=>t.sourceListId!==activeId)];
-    setLists(nLists); setHistory(nHistory); setTxns(nTxns);
+    const nLists = lists.map(l=>l.id===activeId?submitted:l);
+    setLists(nLists);
     try {
-      await DB.submitList(activeId, finalItems, nowStr());
-      await DB.insertHistory(submitted);
-      if(newTxns.length) await DB.insertTxns(newTxns);
+      await DB.submitList(activeId, finalItems, submittedAt);
     } catch(e) { console.error('Submit DB error',e); }
 
     // ── Update cycle tracker for the source file ──────────────────────────
@@ -938,16 +931,17 @@ function App() {
   // ── pin ───────────────────────────────────────────────────────────────────
   if(!user) return <PinPad workers={workers} onSuccess={w=>{ setUser(w); setTab(invFiles.length>0?"assign":"upload"); setWtab("lists"); }}/>;
 
-  const isAdmin = user.role==="admin";
+  const isAdmin = user.role==="admin" || user.role==="lead";  // both manage
   const myLists = isAdmin?[]:lists.filter(l=>l.assignedTo===user.id&&!l.submitted);
   const activeList = activeId ? lists.find(l=>l.id===activeId) : null;
 
   // ── nav ───────────────────────────────────────────────────────────────────
-  const aN=[{key:"upload",icon:"📂",label:"Import"},{key:"setup",icon:"⚙️",label:"Setup"},{key:"assign",icon:"📋",label:"Assign"},{key:"workers",icon:"👷",label:"Workers"},{key:"txn",icon:"💱",label:"Txn"},{key:"history",icon:"🕐",label:"History"},{key:"report",icon:"📊",label:"Report"},{key:"erp",icon:"📧",label:"ERP Rpt"}];
+  const aN=[{key:"upload",icon:"📂",label:"Import"},{key:"setup",icon:"⚙️",label:"Setup"},{key:"assign",icon:"📋",label:"Assign"},{key:"workers",icon:"👷",label:"Workers"},{key:"review",icon:"✅",label:"Submitted"},{key:"history",icon:"🕐",label:"History"},{key:"report",icon:"📊",label:"Report"}];
   const wN=[{key:"lists",icon:"📋",label:"Lists"},{key:"count",icon:"✏️",label:"Count"}];
   const NAV=isAdmin?aN:wN;
   const AK =isAdmin?tab:wtab;
   const SA =isAdmin?setTab:(k)=>{ if(k==="lists")setActiveId(null); setWtab(k); };
+  const roleLabel = user.role==="admin"?"Admin":user.role==="lead"?"Lead":"Worker";
 
   const Header=()=>(
     <header style={{ background:C.dk,borderBottom:`3px solid ${C.red}`,padding:`0 ${pad}px`,display:"flex",alignItems:"stretch",minHeight:54,fontFamily:FAM }}>
@@ -965,7 +959,7 @@ function App() {
       <div style={{ display:"flex",alignItems:"center",gap:8,padding:`0 ${mob?10:14}px`,borderLeft:`1px solid ${C.bdr}`,fontSize:12,color:C.lt }}>
         <Avtr name={user.name} bg={isAdmin?C.redDk:C.red} sz={mob?28:26}/>
         {!mob&&<span>{user.name}</span>}
-        {isAdmin&&!mob&&<span style={BADGE(C.red)}>Admin</span>}
+        {isAdmin&&!mob&&<span style={BADGE(C.red)}>{roleLabel}</span>}
         <button style={{ ...BT("ghost"),padding:"5px 10px",fontSize:11,minHeight:36 }} onClick={()=>setUser(null)}>{mob?"↩":"Sign Out"}</button>
       </div>
     </header>
@@ -1027,15 +1021,15 @@ function App() {
                 })}
               </div>
             )}
-            {history.filter(h=>h.assignedTo===user.id).length>0&&(
+            {lists.filter(l=>l.assignedTo===user.id&&l.submitted).length>0&&(
               <>
-                <div style={{ ...PT,fontSize:mob?16:18,marginTop:28,marginBottom:10 }}><span style={{ ...RB,height:18 }}/>Completed</div>
-                {history.filter(h=>h.assignedTo===user.id).map(l=>(
-                  <div key={l.id} style={{ ...FLAT,opacity:0.6,marginBottom:10 }}>
+                <div style={{ ...PT,fontSize:mob?16:18,marginTop:28,marginBottom:10 }}><span style={{ ...RB,height:18 }}/>Submitted</div>
+                {lists.filter(l=>l.assignedTo===user.id&&l.submitted).map(l=>(
+                  <div key={l.id} style={{ ...FLAT,opacity:0.7,marginBottom:10 }}>
                     <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                      <span style={{ fontSize:22,color:C.ok }}>✓</span>
+                      <span style={{ fontSize:22,color:l.completed?C.ok:C.warn }}>{l.completed?"✓":"⏳"}</span>
                       <div style={{ flex:1,minWidth:0 }}><div style={{ fontSize:14,fontWeight:900,color:C.wht }}>{l.name}</div><div style={{ fontSize:11,color:C.muted }}>Submitted {l.submittedAt}</div></div>
-                      <Badge label="Complete" color={C.ok}/>
+                      <Badge label={l.completed?"Completed":"Awaiting Review"} color={l.completed?C.ok:C.warn}/>
                     </div>
                   </div>
                 ))}
@@ -1239,12 +1233,9 @@ function App() {
                   const now1="5/20/2026, 10:45 AM",now2="5/21/2026, 11:30 AM";
                   const l1={id:uid(),name:"Count #A3F1",assignedTo:"w1",assignedName:"Worker 1",createdAt:"5/20/2026, 8:00 AM",createdBy:"Admin",sourceFile:"sample_warehouse_A.xlsx",items:list1items,submitted:true,submittedAt:now1};
                   const l2={id:uid(),name:"Count #B7C2",assignedTo:"w2",assignedName:"Worker 2",createdAt:"5/21/2026, 7:45 AM",createdBy:"Admin",sourceFile:"sample_warehouse_B.xlsx",items:list2items,submitted:true,submittedAt:now2};
-                  const makeTxns=(list)=>list.items.filter(i=>i.status==="counted").map(i=>({id:uid(),partNum:i.partNum,description:i.description,location:i.location,workerQty:Number(i.countedQty),workerName:list.assignedName,listName:list.name,countedAt:i.countedAt,note:i.note,systemQty:String(i.bookQty),adjustment:i.adjustment,status:"posted",postedAt:list.submittedAt,sourceListId:list.id}));
                   setLists(p=>{const e=p.filter(l=>!["Count #A3F1","Count #B7C2"].includes(l.name));return[l1,l2,...e];});
-                  setHistory(p=>{const e=p.filter(h=>!["Count #A3F1","Count #B7C2"].includes(h.name));return[l1,l2,...e];});
-                  setTxns(p=>{const e=p.filter(t=>!["Count #A3F1","Count #B7C2"].includes(t.listName));return[...makeTxns(l1),...makeTxns(l2),...e];});
-                  showToast("Sample data loaded! Check ERP Rpt, History, and Txn tabs.");
-                  setTab("erp");
+                  showToast("Sample data loaded! Check the Submitted tab to review.");
+                  setTab("review");
                 }}>
                 ▶ Load Sample Data
               </button>
@@ -1455,19 +1446,138 @@ function App() {
           </div>
         )}
 
-        {tab==="txn"&&<TxnTab txnList={txns} setTxnList={setTxns} history={history} assignedLists={lists} mob={mob} toast={showToast}/>}
+        {tab==="review"&&(()=>{
+          // Submitted lists that haven't been marked completed yet
+          const pendingReview = lists.filter(l=>l.submitted && !l.completed);
+
+          // Update a single item's system (ERP) qty within a submitted list
+          const setSysQty = (listId, itemId, val) => {
+            setLists(prev=>prev.map(l=>{
+              if(l.id!==listId) return l;
+              const items = l.items.map(it=>{
+                if(it.id!==itemId) return it;
+                const sys = val===""?null:Number(val);
+                const cnt = Number(it.countedQty);
+                return {...it, systemQty:val, variance: sys!==null&&!isNaN(cnt) ? cnt-sys : null};
+              });
+              DB.updateItems(listId, items);
+              return {...l, items};
+            }));
+          };
+
+          const markCompleted = async (list) => {
+            if(!window.confirm(`Mark "${list.name}" as completed? It will move to History.`)) return;
+            const completedAt = nowStr();
+            const completedList = {...list, completed:true, completedAt, completedBy:user.name};
+            try {
+              await DB.markCompleted(list.id, completedList.items, completedAt, user.name);
+              await DB.insertHistory(completedList);
+              setLists(prev=>prev.map(l=>l.id===list.id?completedList:l));
+              setHistory(prev=>[completedList, ...prev.filter(h=>h.id!==list.id)]);
+              showToast(`✓ ${list.name} completed & moved to History`);
+            } catch(e){ console.error(e); showToast("Failed to complete","err"); }
+          };
+
+          return (
+            <div>
+              <div style={PT}><span style={RB}/>Submitted Counts</div>
+              <div style={PS}>Review counts, enter what the ERP system shows, then mark completed</div>
+
+              {pendingReview.length===0?(
+                <div style={{ ...CARD,textAlign:"center",padding:"32px 20px" }}>
+                  <div style={{ fontSize:40,marginBottom:12 }}>📭</div>
+                  <div style={{ fontSize:16,fontWeight:700,color:C.wht,marginBottom:6 }}>No counts awaiting review</div>
+                  <div style={{ fontSize:13,color:C.muted }}>When a worker submits a count list, it appears here for review.</div>
+                </div>
+              ):(
+                <div style={{ display:"grid", gap:16 }}>
+                  {pendingReview.map(list=>{
+                    const counted = list.items.filter(i=>i.status==="counted");
+                    const allEntered = counted.every(i=>i.systemQty!==undefined && i.systemQty!=="" && i.systemQty!==null);
+                    const varianceCount = counted.filter(i=>i.variance!==null&&i.variance!==undefined&&i.variance!==0).length;
+                    return (
+                      <div key={list.id} style={{ ...FLAT, marginBottom:0 }}>
+                        {/* List header */}
+                        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+                          <Avtr name={list.assignedName} bg={C.red} sz={36}/>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:mob?16:18, fontWeight:900, color:C.wht }}>{list.name}</div>
+                            <div style={{ fontSize:11, color:C.muted }}>
+                              Submitted by <strong style={{ color:C.lt }}>{list.assignedName}</strong> · {list.submittedAt}
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                            <Badge label={`${counted.length} counted`} color={C.ok}/>
+                            {varianceCount>0 && <Badge label={`${varianceCount} variance`} color={C.warn}/>}
+                          </div>
+                        </div>
+
+                        {/* Parts table */}
+                        <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginBottom:14 }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:mob?12:13, minWidth:mob?480:"auto" }}>
+                            <thead>
+                              <tr>{["Part #","Location","Counted","System (ERP)","Variance"].map(h=>(
+                                <th key={h} style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
+                              ))}</tr>
+                            </thead>
+                            <tbody>
+                              {counted.map(it=>{
+                                const v = it.variance;
+                                const vc = v===null||v===undefined?C.muted:v===0?C.ok:v>0?C.warn:C.err;
+                                return (
+                                  <tr key={it.id}>
+                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{it.partNum}</td>
+                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{it.location||"—"}</td>
+                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:15 }}>{it.countedQty}</td>
+                                    <td style={{ padding:"6px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                      <input type="number" inputMode="numeric" placeholder="—"
+                                        value={it.systemQty??""}
+                                        style={{ background:C.blk,border:`1px solid ${it.systemQty!==undefined&&it.systemQty!==""?vc:C.bdr}`,color:C.wht,borderRadius:4,padding:"6px 8px",fontSize:14,fontWeight:700,textAlign:"center",width:80,fontFamily:FAM }}
+                                        onChange={e=>setSysQty(list.id, it.id, e.target.value)}/>
+                                    </td>
+                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                      {v===null||v===undefined
+                                        ? <span style={{ color:C.muted }}>—</span>
+                                        : v===0
+                                          ? <Badge label="✓ Match" color={C.ok}/>
+                                          : <span style={{ ...PILL(v) }}>{v>0?"+":""}{v}</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Action row */}
+                        <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                          <button style={{ ...BT("pri"), fontSize:mob?14:13, opacity:allEntered?1:0.55 }}
+                            onClick={()=>markCompleted(list)}>
+                            ✓ Mark Completed
+                          </button>
+                          {!allEntered && <span style={{ fontSize:11, color:C.muted }}>Tip: enter ERP qty for each part first (optional)</span>}
+                          <button style={{ ...BT("out"), fontSize:mob?13:12, marginLeft:"auto" }}
+                            onClick={()=>expList(list)}>↓ Export</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {tab==="history"&&(
           <div>
             <div style={PT}><span style={RB}/>Count History</div>
             <div style={PS}>All submitted count sessions</div>
             <div style={{ background:"#0d1117",border:`1px solid ${C.bdr}`,borderRadius:4,padding:"9px 14px",marginBottom:14,fontSize:11,color:C.muted,display:"flex",gap:16,flexWrap:"wrap",alignItems:"center" }}>
-              <span>Sessions: <strong style={{ color:C.wht }}>{history.length}</strong></span>
-              <span>Submitted: <strong style={{ color:C.wht }}>{lists.filter(l=>l.submitted).length}</strong></span>
+              <span>Completed sessions: <strong style={{ color:C.wht }}>{history.length}</strong></span>
+              <span>Awaiting review: <strong style={{ color:C.wht }}>{lists.filter(l=>l.submitted&&!l.completed).length}</strong></span>
               <button style={{ ...BT("out"),fontSize:10,padding:"4px 10px",marginLeft:"auto" }}
                 onClick={()=>{
-                  const sub=lists.filter(l=>l.submitted);
-                  (async()=>{ const sub=lists.filter(l=>l.submitted); const miss=sub.filter(l=>!history.find(h=>h.id===l.id)); if(!miss.length){showToast("Up to date");return;} for(const l of miss) await DB.insertHistory(l); showToast(`Synced ${miss.length}`); })();
+                  (async()=>{ const done=lists.filter(l=>l.completed); const miss=done.filter(l=>!history.find(h=>h.id===l.id)); if(!miss.length){showToast("Up to date");return;} for(const l of miss) await DB.insertHistory(l); showToast(`Synced ${miss.length}`); })();
                 }}>↻ Re-sync</button>
             </div>
             {history.length===0?(<div style={CARD}><div style={{ color:C.muted }}>No sessions yet.</div></div>):history.map(list=>{
@@ -1585,146 +1695,6 @@ function App() {
           </div>
         )}
 
-        {tab==="erp"&&(()=>{
-          const adjTxns  = txns.filter(t=>t.status==="posted"&&t.adjustment!==null&&t.adjustment!==0);
-          const surplus  = adjTxns.filter(t=>t.adjustment>0);
-          const shortage = adjTxns.filter(t=>t.adjustment<0);
-          const byWorker = {};
-          adjTxns.forEach(t=>{ if(!byWorker[t.workerName]) byWorker[t.workerName]=[]; byWorker[t.workerName].push(t); });
-          const rDate = new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
-          const netAdj = adjTxns.reduce((s,t)=>s+t.adjustment,0);
-
-          const buildEmail = () => {
-            const ln=[];
-            ln.push(`AMBAC INTERNATIONAL — ERP INVENTORY ADJUSTMENT REPORT`);
-            ln.push(`Generated: ${rDate}`);
-            ln.push(`${"─".repeat(56)}`);
-            ln.push(``);
-            ln.push(`SUMMARY`);
-            ln.push(`  Parts Requiring Adjustment : ${adjTxns.length}`);
-            ln.push(`  Surplus  (count > ERP qty) : ${surplus.length}`);
-            ln.push(`  Shortage (count < ERP qty) : ${shortage.length}`);
-            ln.push(`  Net Unit Change            : ${netAdj>=0?"+":""}${netAdj}`);
-            ln.push(``);
-            ln.push(`${"─".repeat(56)}`);
-            Object.entries(byWorker).forEach(([name,items])=>{
-              ln.push(`\nWORKER: ${name}`);
-              ln.push(`  ${"─".repeat(46)}`);
-              ln.push(`  ${"PART #".padEnd(18)} ${"LOC".padEnd(10)} ${"WKR CT".padEnd(9)} ${"SYS QTY".padEnd(9)} ADJ`);
-              items.forEach(t=>{
-                const a=t.adjustment>0?`+${t.adjustment}`:String(t.adjustment);
-                ln.push(`  ${t.partNum.padEnd(18)} ${(t.location||"—").padEnd(10)} ${String(t.workerQty).padEnd(9)} ${String(t.systemQty).padEnd(9)} ${a}`);
-              });
-            });
-            ln.push(`\n${"─".repeat(56)}`);
-            ln.push(`FULL DETAIL`);
-            ln.push(`${"PART #".padEnd(18)} ${"DESCRIPTION".padEnd(20)} ${"WORKER".padEnd(14)} ${"WKR CT".padEnd(8)} ${"SYS QTY".padEnd(8)} ADJ    DIRECTION`);
-            adjTxns.forEach(t=>{
-              const a=t.adjustment>0?`+${t.adjustment}`:String(t.adjustment);
-              const dir=t.adjustment>0?"Surplus":"Shortage";
-              ln.push(`${t.partNum.padEnd(18)} ${(t.description||"—").slice(0,18).padEnd(20)} ${t.workerName.padEnd(14)} ${String(t.workerQty).padEnd(8)} ${String(t.systemQty).padEnd(8)} ${a.padEnd(7)} ${dir}`);
-            });
-            ln.push(`\nThis report was generated from AMBAC Cycle Count — ${rDate}`);
-            return ln.join("\n");
-          };
-
-          const copyEmail=()=>{ navigator.clipboard.writeText(buildEmail()).then(()=>showToast("Copied to clipboard!")).catch(()=>showToast("Copy failed — use Export","err")); };
-
-          const expErp=()=>{
-            const rows=adjTxns.map(t=>({
-              "Part Number":t.partNum,"Description":t.description||"","Location":t.location||"",
-              "Worker":t.workerName,"Worker Count":t.workerQty,"System Qty":Number(t.systemQty),
-              "Adjustment":t.adjustment,"Direction":t.adjustment>0?"Surplus":"Shortage",
-              "List":t.listName,"Counted At":t.countedAt||"","Posted At":t.postedAt||"","Note":t.note||"",
-            }));
-            const wb=XLSX.utils.book_new();
-            const ws=XLSX.utils.json_to_sheet(rows);
-            ws["!cols"]=[18,24,12,16,14,12,12,12,16,18,18,24].map(w=>({wch:w}));
-            XLSX.utils.book_append_sheet(wb,ws,"ERP Adjustments");
-            XLSX.writeFile(wb,`AMBAC_ERP_Adj_${new Date().toISOString().slice(0,10)}.xlsx`);
-          };
-
-          return (
-            <div>
-              <div style={PT}><span style={RB}/>ERP Adjustment Report</div>
-              <div style={PS}>Posted transactions with inventory variances — copy for email or export to Excel</div>
-
-              <div style={SG(3)}>
-                {[["Parts to Adjust",adjTxns.length,C.red],["Surplus (Over)",surplus.length,C.ok],["Shortage (Under)",shortage.length,shortage.length>0?C.err:C.muted]].map(([l,v,cl])=>(
-                  <div key={l} style={SB(cl)}>
-                    <div style={{ fontSize:mob?28:34,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:4 }}>{v}</div>
-                    <div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div>
-                  </div>
-                ))}
-              </div>
-
-              {adjTxns.length===0?(
-                <div style={{ ...CARD,textAlign:"center",padding:"32px 20px" }}>
-                  <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
-                  <div style={{ fontSize:16,fontWeight:700,color:C.wht,marginBottom:6 }}>No ERP adjustments needed</div>
-                  <div style={{ fontSize:13,color:C.muted }}>All posted transactions matched system qty, or none posted yet.</div>
-                </div>
-              ):(
-                <>
-                  <div style={{ ...FLAT,padding:"14px 16px",marginBottom:16 }}>
-                    <div style={{ display:"flex",gap:10,alignItems:"center",flexWrap:"wrap" }}>
-                      <button style={{ ...BT("pri"),fontSize:mob?14:13 }} onClick={copyEmail}>📋 Copy for Email</button>
-                      <button style={{ ...BT("out"),fontSize:mob?14:13 }} onClick={expErp}>↓ Export Excel</button>
-                      <div style={{ marginLeft:"auto",fontSize:11,color:C.muted }}>{rDate}</div>
-                    </div>
-                  </div>
-
-                  {/* Preview */}
-                  <div style={{ ...FLAT,marginBottom:16 }}>
-                    <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:10 }}>Email Preview</div>
-                    <pre style={{ background:C.blk,border:`1px solid ${C.bdr}`,borderRadius:4,padding:"14px 16px",fontSize:mob?10:11,color:C.lt,lineHeight:1.7,fontFamily:"'Courier New',monospace",overflowX:"auto",WebkitOverflowScrolling:"touch",margin:0,whiteSpace:"pre",maxHeight:300,overflowY:"auto" }}>
-                      {buildEmail()}
-                    </pre>
-                    <button style={{ ...BT("ghost"),fontSize:11,marginTop:10,padding:"6px 14px",color:C.muted }} onClick={copyEmail}>📋 Copy to clipboard</button>
-                  </div>
-
-                  {/* Table */}
-                  <div style={{ fontSize:11,fontWeight:900,letterSpacing:"0.15em",color:C.red,textTransform:"uppercase",marginBottom:10 }}>Adjustment Detail</div>
-                  <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
-                    <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-                      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?580:"auto" }}>
-                        <thead>
-                          <tr>{["Part #","Description","Location","Worker","Worker Count","System Qty","Adjustment","Direction","Posted At"].map(h=>(
-                            <th key={h} style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
-                          ))}</tr>
-                        </thead>
-                        <tbody>
-                          {adjTxns.map((t,i)=>(
-                            <tr key={t.id} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{t.partNum}</td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.lt,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{t.description||"—"}</td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{t.location||"—"}</td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}` }}>
-                                <div style={{ display:"flex",alignItems:"center",gap:6 }}><Avtr name={t.workerName} sz={20}/><span style={{ color:C.lt }}>{t.workerName}</span></div>
-                              </td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:15 }}>{t.workerQty}</td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.muted }}>{t.systemQty}</td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}><Pill adj={t.adjustment}/></td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
-                                <Badge label={t.adjustment>0?"Surplus":"Shortage"} color={t.adjustment>0?C.ok:C.err}/>
-                              </td>
-                              <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.muted,fontSize:10,whiteSpace:"nowrap" }}>{t.postedAt||"—"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,padding:"10px 14px",display:"flex",gap:24,flexWrap:"wrap",fontSize:11 }}>
-                      <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Adjustments: <span style={{ color:C.wht }}>{adjTxns.length} parts</span></span>
-                      <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Net change: <span style={{ color:netAdj>=0?C.ok:C.err }}>{netAdj>=0?"+":""}{netAdj} units</span></span>
-                      <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}><span style={{ color:C.ok }}>+{surplus.length} surplus</span>{" / "}<span style={{ color:C.err }}>{shortage.length} shortage</span></span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })()}
 
       </main>
       <BotNav/>
