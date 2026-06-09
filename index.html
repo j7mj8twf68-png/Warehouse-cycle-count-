@@ -1219,39 +1219,6 @@ function App() {
                 </div>
               </>
             )}
-
-            {/* Sample data */}
-            <div style={{ ...FLAT, borderTop:`3px solid ${C.warn}`, marginTop:16 }}>
-              <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.warn,textTransform:"uppercase",marginBottom:10 }}>Demo / Example</div>
-              <div style={{ fontSize:13,color:C.lt,marginBottom:14,lineHeight:1.6 }}>Load sample data to see a full example of the ERP Adjustment Report, History, and Transactions.</div>
-              <button style={{ ...BT("out"),borderColor:C.warn,color:C.warn,fontSize:mob?14:13 }}
-                onClick={()=>{
-                  const sampleDates=["5/20/2026, 8:14 AM","5/20/2026, 8:31 AM","5/20/2026, 9:02 AM","5/21/2026, 7:55 AM","5/21/2026, 8:18 AM","5/21/2026, 9:44 AM","5/22/2026, 10:05 AM","5/22/2026, 10:22 AM"];
-                  const sd=(i)=>sampleDates[i%sampleDates.length];
-                  const list1items=[
-                    {id:uid(),partNum:"INJ-7842",description:"Fuel Injector Nozzle",location:"A1-04",bookQty:120,countedQty:"118",adjustment:-2,status:"counted",countedAt:sd(0),note:""},
-                    {id:uid(),partNum:"PLG-3301",description:"High-Pressure Plug",location:"A2-11",bookQty:55,countedQty:"55",adjustment:0,status:"counted",countedAt:sd(1),note:""},
-                    {id:uid(),partNum:"SPR-0094",description:"Return Spring",location:"B1-02",bookQty:200,countedQty:"207",adjustment:7,status:"counted",countedAt:sd(2),note:"Found extra in bin B1-03"},
-                    {id:uid(),partNum:"SEL-4481",description:"Selector Valve",location:"B3-08",bookQty:30,countedQty:"28",adjustment:-2,status:"counted",countedAt:sd(3),note:"2 units in QC hold"},
-                    {id:uid(),partNum:"ORG-2250",description:"O-Ring Kit 2.25mm",location:"C1-01",bookQty:500,countedQty:"500",adjustment:0,status:"counted",countedAt:sd(4),note:""},
-                  ];
-                  const list2items=[
-                    {id:uid(),partNum:"PMP-6610",description:"Fuel Pump Assembly",location:"D2-03",bookQty:18,countedQty:"20",adjustment:2,status:"counted",countedAt:sd(5),note:"2 returned from field"},
-                    {id:uid(),partNum:"FLT-8801",description:"High-Flow Filter",location:"D3-01",bookQty:75,countedQty:"71",adjustment:-4,status:"counted",countedAt:sd(6),note:"4 units scrapped"},
-                    {id:uid(),partNum:"CAM-1140",description:"Cam Ring",location:"E1-05",bookQty:42,countedQty:"42",adjustment:0,status:"counted",countedAt:sd(7),note:""},
-                    {id:uid(),partNum:"INJ-7843",description:"Fuel Injector Body",location:"A1-05",bookQty:95,countedQty:"99",adjustment:4,status:"counted",countedAt:sd(0),note:""},
-                    {id:uid(),partNum:"SHF-0320",description:"Drive Shaft Seal",location:"F2-02",bookQty:60,countedQty:"57",adjustment:-3,status:"counted",countedAt:sd(1),note:"Recount needed"},
-                  ];
-                  const now1="5/20/2026, 10:45 AM",now2="5/21/2026, 11:30 AM";
-                  const l1={id:uid(),name:"Count #A3F1",assignedTo:"w1",assignedName:"Worker 1",createdAt:"5/20/2026, 8:00 AM",createdBy:"Admin",sourceFile:"sample_warehouse_A.xlsx",items:list1items,submitted:true,submittedAt:now1};
-                  const l2={id:uid(),name:"Count #B7C2",assignedTo:"w2",assignedName:"Worker 2",createdAt:"5/21/2026, 7:45 AM",createdBy:"Admin",sourceFile:"sample_warehouse_B.xlsx",items:list2items,submitted:true,submittedAt:now2};
-                  setLists(p=>{const e=p.filter(l=>!["Count #A3F1","Count #B7C2"].includes(l.name));return[l1,l2,...e];});
-                  showToast("Sample data loaded! Check the Submitted tab to review.");
-                  setTab("review");
-                }}>
-                ▶ Load Sample Data
-              </button>
-            </div>
           </div>
         )}
 
