@@ -901,12 +901,24 @@ function App() {
   const expList=(list)=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(list.items.map(i=>({Part:i.partNum,Desc:i.description,Loc:i.location,Counted:i.countedQty||"",Status:i.status,At:i.countedAt||"",Note:i.note}))),"Count"); XLSX.writeFile(wb,`count_${list.name.replace(/\s/g,"_")}.xlsx`); };
 
   // ── report ────────────────────────────────────────────────────────────────
-  const rRows=history.flatMap(l=>l.items.filter(i=>i.status==="counted").map(i=>({partNum:i.partNum,description:i.description,location:i.location,bookQty:i.bookQty,countedQty:Number(i.countedQty),adjustment:i.adjustment,correct:i.bookQty!==null&&Number(i.countedQty)===i.bookQty,workerName:l.assignedName,listName:l.name,countedAt:i.countedAt,note:i.note})));
+  // Report compares WORKER COUNT vs ERP SYSTEM QTY (entered during review)
+  const rRows=history.flatMap(l=>l.items.filter(i=>i.status==="counted").map(i=>{
+    const sys = (i.systemQty===undefined||i.systemQty===""||i.systemQty===null) ? null : Number(i.systemQty);
+    const cnt = Number(i.countedQty);
+    const variance = sys!==null && !isNaN(cnt) ? cnt - sys : (i.variance ?? null);
+    return {
+      partNum:i.partNum, description:i.description, location:i.location,
+      systemQty:sys, countedQty:cnt,
+      variance,
+      correct: sys!==null && variance===0,
+      workerName:l.assignedName, listName:l.name, countedAt:i.countedAt, note:i.note,
+    };
+  }));
   const rWkrs=[...new Set(history.map(l=>l.assignedName))].sort();
   const rFilt=rRows.filter(r=>rptW==="all"||r.workerName===rptW).filter(r=>!rptP||r.partNum.toLowerCase().includes(rptP.toLowerCase())).sort((a,b)=>{const av=typeof a[rptS.col]==="string"?a[rptS.col].toLowerCase():(a[rptS.col]??0),bv=typeof b[rptS.col]==="string"?b[rptS.col].toLowerCase():(b[rptS.col]??0);return av<bv?(rptS.dir==="asc"?-1:1):av>bv?(rptS.dir==="asc"?1:-1):0;});
   const togSort=(col)=>setRptS(s=>({col,dir:s.col===col&&s.dir==="asc"?"desc":"asc"}));
   const si=(col)=>rptS.col===col?(rptS.dir==="asc"?" ▲":" ▼"):"";
-  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Desc:r.description,Loc:r.location,"Book Qty":r.bookQty??"","Counted Qty":r.countedQty,Correct:r.bookQty!==null?(r.correct?"Yes":"No"):"N/A",Adj:r.adjustment!==null?r.adjustment:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
+  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Desc:r.description,Loc:r.location,"Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
 
   // ── styles ────────────────────────────────────────────────────────────────
   const pad  = mob?16:24;
@@ -1622,20 +1634,20 @@ function App() {
         {tab==="report"&&(
           <div>
             <div style={PT}><span style={RB}/>Count Report</div>
-            <div style={PS}>Every part counted — qty, worker, accuracy</div>
-            {(()=>{ const hb=rFilt.filter(r=>r.bookQty!==null),cor=hb.filter(r=>r.correct).length,ap=hb.length>0?Math.round((cor/hb.length)*100):null,ac=ap===null?C.muted:ap>=95?C.ok:ap>=80?C.warn:C.err,pos=rFilt.filter(r=>r.adjustment>0).length,neg=rFilt.filter(r=>r.adjustment<0).length;
+            <div style={PS}>Worker count vs ERP system qty — matches and adjustments</div>
+            {(()=>{ const rev=rFilt.filter(r=>r.systemQty!==null),match=rev.filter(r=>r.correct).length,ap=rev.length>0?Math.round((match/rev.length)*100):null,ac=ap===null?C.muted:ap>=95?C.ok:ap>=80?C.warn:C.err,pos=rFilt.filter(r=>r.variance>0).length,neg=rFilt.filter(r=>r.variance<0).length;
               return (
                 <>
                   <div style={SG(5)}>
-                    {[["Counted",rFilt.length,C.red],["% Correct",ap!==null?`${ap}%`:"—",ac],["With Adj",rFilt.filter(r=>r.adjustment!==0&&r.adjustment!==null).length,C.warn],["Surplus",pos,C.ok],["Shortage",neg,neg>0?C.err:C.muted]].map(([l,v,cl])=>(
+                    {[["Counted",rFilt.length,C.red],["% Match",ap!==null?`${ap}%`:"—",ac],["Adjustments",rFilt.filter(r=>r.variance!==0&&r.variance!==null).length,C.warn],["Surplus",pos,C.ok],["Shortage",neg,neg>0?C.err:C.muted]].map(([l,v,cl])=>(
                       <div key={l} style={SB(cl)}><div style={{ fontSize:mob?24:28,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:3 }}>{v}</div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div></div>
                     ))}
                   </div>
                   {rWkrs.length>0&&(
                     <div style={{ ...FLAT,marginBottom:14 }}>
-                      <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:12 }}>Accuracy by Worker</div>
+                      <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:12 }}>Match Rate by Worker</div>
                       <div style={{ display:"grid",gridTemplateColumns:mob?"1fr":tabW?"1fr 1fr":"repeat(3,1fr)",gap:10 }}>
-                        {rWkrs.map(name=>{ const wr=rFilt.filter(r=>r.workerName===name),wb=wr.filter(r=>r.bookQty!==null),wc=wb.filter(r=>r.correct).length,wp=wb.length>0?Math.round((wc/wb.length)*100):null,wc2=wp===null?C.muted:wp>=95?C.ok:wp>=80?C.warn:C.err; return (
+                        {rWkrs.map(name=>{ const wr=rFilt.filter(r=>r.workerName===name),wrev=wr.filter(r=>r.systemQty!==null),wc=wrev.filter(r=>r.correct).length,wp=wrev.length>0?Math.round((wc/wrev.length)*100):null,wc2=wp===null?C.muted:wp>=95?C.ok:wp>=80?C.warn:C.err; return (
                           <div key={name} style={{ background:C.blk,border:`1px solid ${C.bdr}`,borderRadius:4,padding:"12px 14px" }}>
                             <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
                               <Avtr name={name} sz={28}/>
@@ -1643,7 +1655,7 @@ function App() {
                               <Badge label={wp!==null?`${wp}%`:"N/A"} color={wc2}/>
                             </div>
                             <div style={{ ...TRCK,height:5,marginBottom:4 }}><div style={FILL(wp??0,wc2)}/></div>
-                            <div style={{ fontSize:10,color:C.muted }}>{wc}/{wb.length} correct · {wr.length} total</div>
+                            <div style={{ fontSize:10,color:C.muted }}>{wc}/{wrev.length} matched · {wr.length} total</div>
                           </div>
                         );})}
                       </div>
@@ -1664,21 +1676,21 @@ function App() {
                 <button style={{ ...BT("pri"),fontSize:mob?14:12,width:mob?"100%":"auto",marginTop:mob?4:0 }} onClick={expReport} disabled={!rFilt.length}>↓ Export</button>
               </div>
             </div>
-            {rRows.length===0?(<div style={CARD}><div style={{ color:C.muted }}>No data yet.</div></div>):rFilt.length===0?(<div style={FLAT}><div style={{ color:C.muted }}>No results.</div></div>):(
+            {rRows.length===0?(<div style={CARD}><div style={{ color:C.muted }}>No completed counts yet. Mark counts completed in the Submitted tab to see them here.</div></div>):rFilt.length===0?(<div style={FLAT}><div style={{ color:C.muted }}>No results.</div></div>):(
               <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
                 <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?580:"auto" }}>
-                    <thead><tr>{[["partNum","Part #"],["description","Desc"],["location","Loc"],["bookQty","Book"],["countedQty","Counted"],["correct","Correct"],["adjustment","Adj"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?620:"auto" }}>
+                    <thead><tr>{[["partNum","Part #"],["description","Desc"],["location","Loc"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
                     <tbody>
                       {rFilt.map((r,i)=>(
                         <tr key={i} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{r.partNum}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.lt,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{r.description||"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{r.location||"—"}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.muted }}>{r.bookQty!==null?r.bookQty:"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:14 }}>{r.countedQty}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.bookQty===null?C.muted:r.correct?C.ok:C.err }}>{r.bookQty===null?"N/A":r.correct?"✓ Yes":"✗ No"}</span></td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{r.adjustment!==null?<Pill adj={r.adjustment}/>:<span style={{ color:C.muted }}>—</span>}</td>
+                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
+                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.systemQty===null?C.muted:r.correct?C.ok:C.err }}>{r.systemQty===null?"Not reviewed":r.correct?"✓ Match":"✗ Adjust"}</span></td>
+                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{r.variance!==null&&r.variance!==0?<Pill adj={r.variance}/>:r.variance===0?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><div style={{ display:"flex",alignItems:"center",gap:6 }}><Avtr name={r.workerName} sz={22}/><span style={{ fontWeight:700,color:C.lt,fontSize:mob?11:12 }}>{r.workerName}</span></div></td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.muted,fontSize:10,whiteSpace:"nowrap" }}>{r.countedAt||"—"}</td>
                         </tr>
@@ -1688,7 +1700,7 @@ function App() {
                 </div>
                 <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,padding:"9px 14px",display:"flex",gap:20,flexWrap:"wrap",fontSize:11 }}>
                   <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Total: <span style={{ color:C.wht }}>{rFilt.length}</span></span>
-                  {(()=>{ const hb=rFilt.filter(r=>r.bookQty!==null),c=hb.filter(r=>r.correct).length,p=hb.length>0?Math.round((c/hb.length)*100):null,cl=p===null?C.muted:p>=95?C.ok:p>=80?C.warn:C.err; return <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Accuracy: <span style={{ color:cl }}>{p!==null?`${p}%`:"—"}</span> <span style={{ color:C.muted,fontWeight:400 }}>({c}/{hb.length})</span></span>; })()}
+                  {(()=>{ const rev=rFilt.filter(r=>r.systemQty!==null),c=rev.filter(r=>r.correct).length,p=rev.length>0?Math.round((c/rev.length)*100):null,cl=p===null?C.muted:p>=95?C.ok:p>=80?C.warn:C.err; return <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Match rate: <span style={{ color:cl }}>{p!==null?`${p}%`:"—"}</span> <span style={{ color:C.muted,fontWeight:400 }}>({c}/{rev.length})</span></span>; })()}
                 </div>
               </div>
             )}
