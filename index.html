@@ -801,6 +801,7 @@ function App() {
   // ── Safety-net poll — full refresh from Supabase every 60s ───────────────
   useEffect(()=>{
     if(!loaded) return;
+    const mgr = user && (user.role==="admin" || user.role==="lead");
     const pull = async()=>{
       try {
         const d = await DB.load();
@@ -810,8 +811,8 @@ function App() {
         setHistory(d.history);
         setTxns(d.txns);
         // Don't clobber someone mid-edit: a manager entering ERP qtys, or a worker actively counting
-        const editingReview = isAdmin && tab==="review";
-        const editingCount  = !isAdmin && wtab==="count" && activeId;
+        const editingReview = mgr && tab==="review";
+        const editingCount  = !mgr && wtab==="count" && activeId;
         if(!editingReview && !editingCount) setLists(d.lists);
       } catch(e){ console.warn("Periodic refresh failed", e); }
     };
@@ -820,7 +821,7 @@ function App() {
     const onVis = ()=>{ if(document.visibilityState==="visible") pull(); };
     document.addEventListener("visibilitychange", onVis);
     return ()=>{ clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
-  },[loaded, isAdmin, tab, wtab, activeId]);
+  },[loaded, user, tab, wtab, activeId]);
 
   // ── parse file — adds to invFiles, doesn't replace ───────────────────────
   const parseFile = useCallback((file)=>{
