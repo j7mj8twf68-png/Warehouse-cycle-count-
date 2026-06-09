@@ -1457,6 +1457,36 @@ function App() {
             } catch(e){ console.error(e); showToast("Failed to complete","err"); }
           };
 
+          // Send a single part back to its original worker as a new "Recount" list
+          const recountItem = async (list, item) => {
+            if(!window.confirm(`Send ${item.partNum} back to ${list.assignedName} for a recount?`)) return;
+            const dateLabel = new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
+            const newItem = {
+              id:uid(), partNum:item.partNum, description:item.description, location:item.location,
+              bookQty:item.bookQty, countedQty:"", adjustment:null, status:"pending", countedAt:null, note:"",
+            };
+            const recountList = {
+              id:uid(), name:`${dateLabel} Recount`,
+              assignedTo:list.assignedTo, assignedName:list.assignedName,
+              createdAt:nowStr(), createdBy:user.name,
+              sourceFile:list.sourceFile, sourceFileId:list.sourceFileId,
+              items:[newItem],
+            };
+            try {
+              // If a recount list for this worker + same date already exists & not submitted, append to it
+              const existing = lists.find(l=>!l.submitted && l.name===recountList.name && l.assignedTo===list.assignedTo);
+              if(existing){
+                const merged = [...existing.items.filter(i=>i.partNum!==item.partNum), newItem];
+                await DB.updateItems(existing.id, merged);
+                setLists(prev=>prev.map(l=>l.id===existing.id?{...l,items:merged}:l));
+              } else {
+                await DB.insertList(recountList);
+                setLists(prev=>[recountList, ...prev]);
+              }
+              showToast(`↻ ${item.partNum} sent to ${list.assignedName} for recount`);
+            } catch(e){ console.error(e); showToast("Failed to send recount","err"); }
+          };
+
           return (
             <div>
               <div style={PT}><span style={RB}/>Submitted Counts</div>
@@ -1495,7 +1525,7 @@ function App() {
                         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginBottom:14 }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:mob?12:13, minWidth:mob?480:"auto" }}>
                             <thead>
-                              <tr>{["Part #","Location","Counted","System (ERP)","Variance"].map(h=>(
+                              <tr>{["Part #","Location","Counted","System (ERP)","Variance","Recount"].map(h=>(
                                 <th key={h} style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
                               ))}</tr>
                             </thead>
@@ -1520,6 +1550,10 @@ function App() {
                                         : v===0
                                           ? <Badge label="✓ Match" color={C.ok}/>
                                           : <span style={{ ...PILL(v) }}>{v>0?"+":""}{v}</span>}
+                                    </td>
+                                    <td style={{ padding:"6px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                      <button style={{ ...BT("ghost"), fontSize:11, padding:"5px 12px", color:C.warn, borderColor:C.warn, border:`1px solid ${C.warn}55`, borderRadius:4 }}
+                                        onClick={()=>recountItem(list, it)}>↻ Recount</button>
                                     </td>
                                   </tr>
                                 );
