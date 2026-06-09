@@ -230,34 +230,75 @@ function useWidth() {
 
 // ── PIN Pad ───────────────────────────────────────────────────────────────────
 function PinPad({ workers, onSuccess }) {
+  const [selected, setSelected] = useState(null); // the worker chosen from the list
   const [pin, setPin] = useState("");
   const [err, setErr] = useState("");
   const [shk, setShk] = useState(false);
   const mob = useWidth() < 600;
 
+  const roleColor = (r)=> r==="admin"?C.red : r==="lead"?C.warn : C.mid;
+  const roleLbl   = (r)=> r==="admin"?"Admin" : r==="lead"?"Lead" : "Worker";
+
+  // sort: admins, then leads, then workers
+  const order = { admin:0, lead:1, worker:2 };
+  const sorted = [...workers].sort((a,b)=>(order[a.role]??3)-(order[b.role]??3) || a.name.localeCompare(b.name));
+
   const press = (d) => {
     if (pin.length >= 4) return;
     const next = pin + d;
     setPin(next); setErr("");
-    const match = workers.find(w => w.pin === next);
-    if (match) { onSuccess(match); return; }
-    if (next.length >= Math.max(...workers.map(w=>w.pin.length))) {
-      setShk(true); setErr("Incorrect PIN");
-      setTimeout(() => { setShk(false); setPin(""); }, 800);
+    if (next.length === selected.pin.length) {
+      if (next === selected.pin) { onSuccess(selected); }
+      else { setShk(true); setErr("Incorrect PIN"); setTimeout(()=>{ setShk(false); setPin(""); }, 800); }
     }
   };
 
   const KS = (sp) => ({ height:mob?80:72, borderRadius:8, background:sp?C.mid:C.dk, border:`2px solid ${C.bdr}`, color:sp?C.muted:C.wht, fontSize:sp?14:(mob?28:24), fontWeight:900, cursor:"pointer", fontFamily:FAM, WebkitTapHighlightColor:"transparent", touchAction:"manipulation" });
 
+  // ── STEP 1: choose your name ───────────────────────────────────────────────
+  if (!selected) {
+    return (
+      <div style={{ minHeight:"100vh", background:C.blk, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:FAM }}>
+        <div style={{ width:"100%", maxWidth:380 }}>
+          <div style={{ textAlign:"center", marginBottom:32 }}>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:12, marginBottom:12 }}>
+              <div style={{ background:C.red, color:C.wht, fontWeight:900, fontSize:18, letterSpacing:"0.1em", padding:"6px 14px", borderRadius:3, textTransform:"uppercase" }}>AMBAC</div>
+              <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.2em", textTransform:"uppercase" }}>Cycle Count</div>
+            </div>
+            <div style={{ fontSize:14, color:C.lt }}>Tap your name to sign in</div>
+          </div>
+          <div style={{ display:"grid", gap:10 }}>
+            {sorted.map(w=>(
+              <button key={w.id}
+                onClick={()=>{ setSelected(w); setPin(""); setErr(""); }}
+                style={{ display:"flex", alignItems:"center", gap:14, background:C.dk, border:`1px solid ${C.bdr}`, borderLeft:`4px solid ${roleColor(w.role)}`, borderRadius:8, padding:"14px 16px", cursor:"pointer", textAlign:"left", fontFamily:FAM, WebkitTapHighlightColor:"transparent" }}>
+                <div style={{ width:42, height:42, borderRadius:"50%", background:roleColor(w.role)==="#262626"?C.mid:roleColor(w.role), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:18, color:C.wht, flexShrink:0 }}>{w.name[0]}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:16, fontWeight:900, color:C.wht }}>{w.name}</div>
+                  <div style={{ fontSize:11, color:C.muted, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>{roleLbl(w.role)}</div>
+                </div>
+                <span style={{ fontSize:22, color:C.muted }}>›</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ textAlign:"center", marginTop:24, fontSize:12, color:C.muted }}>Contact your supervisor if you need help</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── STEP 2: enter PIN for the chosen name ──────────────────────────────────
   return (
     <div style={{ minHeight:"100vh", background:C.blk, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", fontFamily:FAM }}>
       <div style={{ width:"100%", maxWidth:360 }}>
-        <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:12, marginBottom:12 }}>
-            <div style={{ background:C.red, color:C.wht, fontWeight:900, fontSize:18, letterSpacing:"0.1em", padding:"6px 14px", borderRadius:3, textTransform:"uppercase" }}>AMBAC</div>
-            <div style={{ fontSize:11, color:C.muted, letterSpacing:"0.2em", textTransform:"uppercase" }}>Cycle Count</div>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <button onClick={()=>{ setSelected(null); setPin(""); setErr(""); }}
+            style={{ ...BT("ghost"), fontSize:12, padding:"6px 14px", marginBottom:20 }}>← Not you?</button>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:roleColor(selected.role)==="#262626"?C.mid:roleColor(selected.role), display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:24, color:C.wht }}>{selected.name[0]}</div>
+            <div style={{ fontSize:20, fontWeight:900, color:C.wht }}>{selected.name}</div>
+            <div style={{ fontSize:13, color:C.lt }}>Enter your PIN</div>
           </div>
-          <div style={{ fontSize:14, color:C.lt }}>Enter your PIN to sign in</div>
         </div>
         <div style={{ display:"flex", gap:16, justifyContent:"center", marginBottom:24 }}>
           {[0,1,2,3].map(i=><div key={i} style={{ width:16, height:16, borderRadius:"50%", background:i<pin.length?C.red:C.mid, border:`2px solid ${i<pin.length?C.red:C.bdr}`, transition:"all 0.15s" }}/>)}
@@ -271,7 +312,6 @@ function PinPad({ workers, onSuccess }) {
           <button style={KS(false)} onClick={()=>press("0")}>0</button>
           <button style={KS(true)} onClick={()=>setPin(p=>p.slice(0,-1))}>⌫</button>
         </div>
-        <div style={{ textAlign:"center", marginTop:28, fontSize:12, color:C.muted }}>Contact your supervisor if you need help</div>
       </div>
     </div>
   );
