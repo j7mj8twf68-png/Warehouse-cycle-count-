@@ -485,13 +485,15 @@ function WorkerCountDeck({ list, mob, onCountedQty, onSkip, onSubmit, onBack }) 
               <label style={{ ...LBL, textAlign:"center", display:"block", marginBottom:8 }}>Counted Quantity</label>
               <input ref={qRef} type="number" inputMode="numeric" placeholder="0" value={qty}
                 style={{ background:C.blk,border:`2px solid ${qty?C.red:C.bdr}`,color:C.wht,borderRadius:10,padding:"14px",fontSize:mob?38:42,fontWeight:900,textAlign:"center",width:"100%",boxSizing:"border-box",fontFamily:FAM,outline:"none",transition:"border-color 0.2s",WebkitAppearance:"none",minHeight:mob?76:84 }}
-                onChange={e=>setQty(e.target.value)}/>
+                onChange={e=>setQty(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); if(qty) doCount(); } }}/>
             </div>
             <div>
               <label style={{ ...LBL, marginBottom:6 }}>Note (optional)</label>
               <input type="text" placeholder="e.g. damaged, recount needed..." value={note}
                 style={{ ...INP(mob), borderRadius:8 }}
-                onChange={e=>setNote(e.target.value)}/>
+                onChange={e=>setNote(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); if(qty) doCount(); } }}/>
             </div>
           </>
         )}
