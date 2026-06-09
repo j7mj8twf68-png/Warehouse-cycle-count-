@@ -214,6 +214,12 @@ const BADGE = (color=C.red) => ({
   fontWeight:900, letterSpacing:"0.08em", textTransform:"uppercase",
   background:`${color}22`, color, border:`1px solid ${color}55`,
 });
+// Format a unit price value — shows $ if numeric, raw text otherwise, — if empty
+const fmtPrice = (v) => {
+  if(v===null||v===undefined||v==="") return "—";
+  const n = Number(String(v).replace(/[$,]/g,""));
+  return isNaN(n) ? String(v) : `$${n.toFixed(2)}`;
+};
 
 function Pill({ adj })          { return <span style={PILL(adj)}>{adj>0?"+":""}{adj}</span>; }
 function Badge({ label, color }){ return <span style={BADGE(color)}>{label}</span>; }
@@ -808,7 +814,7 @@ function App() {
           // preserve existing column mapping if re-uploading
           pnCol: existing?.pnCol || find(["part","item","sku","number","pn","id"]),
           dCol:  existing?.dCol  || find(["desc","name","title","product"]),
-          qCol:  existing?.qCol  || find(["qty","quant","stock","on hand","onhand"]),
+          qCol:  existing?.qCol  || find(["price","cost","unit price","value","each"]),
           lCol:  existing?.lCol  || find(["loc","bin","slot","warehouse","aisle","rack"]),
           uploadedAt: nowStr(),
         };
@@ -855,7 +861,8 @@ function App() {
       partNum:      String(row[srcFile.pnCol]??"").trim(),
       description:  srcFile.dCol ? row[srcFile.dCol]??"" : "",
       location:     srcFile.lCol ? row[srcFile.lCol]??"" : "",
-      bookQty:      srcFile.qCol ? Number(row[srcFile.qCol]||0) : null,
+      unitPrice:    srcFile.qCol ? (row[srcFile.qCol]??"") : "",
+      bookQty:      null,
       countedQty:"",adjustment:null,status:"pending",countedAt:null,note:"",
     }));
 
@@ -978,7 +985,7 @@ function App() {
     const cnt = Number(i.countedQty);
     const variance = sys!==null && !isNaN(cnt) ? cnt - sys : (i.variance ?? null);
     return {
-      partNum:i.partNum, description:i.description, location:i.location,
+      partNum:i.partNum, description:i.description, location:i.location, unitPrice:i.unitPrice,
       systemQty:sys, countedQty:cnt,
       variance,
       correct: sys!==null && variance===0,
@@ -989,7 +996,7 @@ function App() {
   const rFilt=rRows.filter(r=>rptW==="all"||r.workerName===rptW).filter(r=>!rptP||r.partNum.toLowerCase().includes(rptP.toLowerCase())).sort((a,b)=>{const av=typeof a[rptS.col]==="string"?a[rptS.col].toLowerCase():(a[rptS.col]??0),bv=typeof b[rptS.col]==="string"?b[rptS.col].toLowerCase():(b[rptS.col]??0);return av<bv?(rptS.dir==="asc"?-1:1):av>bv?(rptS.dir==="asc"?1:-1):0;});
   const togSort=(col)=>setRptS(s=>({col,dir:s.col===col&&s.dir==="asc"?"desc":"asc"}));
   const si=(col)=>rptS.col===col?(rptS.dir==="asc"?" ▲":" ▼"):"";
-  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Loc:r.location,"Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
+  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Loc:r.location,"Unit Price":r.unitPrice||"","Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
 
   // ── styles ────────────────────────────────────────────────────────────────
   const pad  = mob?16:24;
@@ -1324,7 +1331,7 @@ function App() {
                         📄 {af.name} <span style={{ fontSize:11, color:C.muted, fontWeight:400 }}>— {af.rows.length} items</span>
                       </div>
                       <div style={TC}>
-                        {[["Part Number *","pnCol",false],["Description","dCol",true],["Book Quantity","qCol",true],["Location","lCol",true]].map(([lbl,field,opt])=>(
+                        {[["Part Number *","pnCol",false],["Location","lCol",true],["Unit Price","qCol",true]].map(([lbl,field,opt])=>(
                           <div key={field}>
                             <label style={LBL}>{lbl}</label>
                             <select style={INP(mob)} value={af[field]||""} onChange={e=>updateCol(field,e.target.value)}>
@@ -1562,7 +1569,7 @@ function App() {
             const dateLabel = new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
             const newItem = {
               id:uid(), partNum:item.partNum, description:item.description, location:item.location,
-              bookQty:item.bookQty, countedQty:"", adjustment:null, status:"pending", countedAt:null, note:"",
+              unitPrice:item.unitPrice, bookQty:item.bookQty, countedQty:"", adjustment:null, status:"pending", countedAt:null, note:"",
             };
             const recountList = {
               id:uid(), name:`${dateLabel} Recount`,
@@ -1624,7 +1631,7 @@ function App() {
                         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginBottom:14 }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:mob?12:13, minWidth:mob?480:"auto" }}>
                             <thead>
-                              <tr>{["Part #","Location","Counted","System (ERP)","Variance","Recount"].map(h=>(
+                              <tr>{["Part #","Location","Unit Price","Counted","System (ERP)","Variance","Recount"].map(h=>(
                                 <th key={h} style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
                               ))}</tr>
                             </thead>
@@ -1636,6 +1643,7 @@ function App() {
                                   <tr key={it.id}>
                                     <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{it.partNum}</td>
                                     <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{it.location||"—"}</td>
+                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(it.unitPrice)}</td>
                                     <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:15 }}>{it.countedQty}</td>
                                     <td style={{ padding:"6px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
                                       <input type="number" inputMode="numeric" placeholder="—"
@@ -1779,12 +1787,13 @@ function App() {
               <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
                 <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?620:"auto" }}>
-                    <thead><tr>{[["partNum","Part #"],["location","Loc"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
+                    <thead><tr>{[["partNum","Part #"],["location","Loc"],["unitPrice","Unit Price"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
                     <tbody>
                       {rFilt.map((r,i)=>(
                         <tr key={i} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{r.partNum}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{r.location||"—"}</td>
+                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(r.unitPrice)}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:14 }}>{r.countedQty}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.systemQty===null?C.muted:r.correct?C.ok:C.err }}>{r.systemQty===null?"Not reviewed":r.correct?"✓ Match":"✗ Adjust"}</span></td>
