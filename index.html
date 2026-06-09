@@ -858,27 +858,30 @@ function App() {
     // ── Update cycle tracker for the source file ──────────────────────────
     // fileCycles[fileId] = { cycle: number, counted: string[] }
     // 'counted' accumulates unique part numbers counted this cycle.
-    // When counted.length reaches total parts in file → auto-restart.
+    // When counted reaches total parts in file → auto-restart.
     if(listMeta.sourceFileId || listMeta.sourceFile) {
       const srcFile = listMeta.sourceFileId
         ? invFiles.find(f=>f.id===listMeta.sourceFileId)
         : invFiles.find(f=>f.name===listMeta.sourceFile);
       if(srcFile && srcFile.pnCol) {
-        setFileCycles(prev=>{
-          const cur       = prev[srcFile.id] || { cycle:1, counted:[] };
-          const allPns    = new Set(srcFile.rows.map(r=>String(r[srcFile.pnCol]??"").trim()).filter(Boolean));
-          const merged    = new Set([...cur.counted, ...counted.map(i=>i.partNum)]);
-          const newCounted= [...merged];
-          const total     = allPns.size;
-          const isComplete= merged.size >= total;
+        const cur     = fileCycles[srcFile.id] || { cycle:1, counted:[] };
+        const allPns  = new Set(srcFile.rows.map(r=>String(r[srcFile.pnCol]??"").trim()).filter(Boolean));
+        // Only count part numbers that actually exist in the source file
+        const newlyCounted = counted.map(i=>i.partNum).filter(pn=>allPns.has(pn));
+        const merged  = new Set([...cur.counted, ...newlyCounted]);
+        const total   = allPns.size;
+        const isComplete = merged.size >= total && total > 0;
 
-          const next = isComplete
-            ? { ...prev, [srcFile.id]: { cycle: cur.cycle+1, counted: [], lastCompleted: nowStr() } }
-            : { ...prev, [srcFile.id]: { ...cur, counted: newCounted } };
-
-          if(isComplete) setTimeout(()=>showToast(`🎉 Cycle ${cur.cycle} complete — all ${total} parts counted! Cycle ${cur.cycle+1} starts now.`), 400);
-          return next;
-        });
+        if(isComplete) {
+          // Restart: new cycle, empty counted list
+          await DB.upsertCycle(srcFile.id, cur.cycle+1, [], nowStr());
+          setFileCycles(prev=>({ ...prev, [srcFile.id]: { cycle: cur.cycle+1, counted: [], lastCompleted: nowStr() } }));
+          setTimeout(()=>showToast(`🎉 All ${total} parts counted! Progress reset to 0.`), 400);
+        } else {
+          const newCounted = [...merged];
+          await DB.upsertCycle(srcFile.id, cur.cycle, newCounted, cur.lastCompleted||null);
+          setFileCycles(prev=>({ ...prev, [srcFile.id]: { ...cur, counted: newCounted } }));
+        }
       }
     }
 
