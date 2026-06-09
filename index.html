@@ -220,6 +220,12 @@ const fmtPrice = (v) => {
   const n = Number(String(v).replace(/[$,]/g,""));
   return isNaN(n) ? String(v) : `$${n.toFixed(2)}`;
 };
+// Parse a price value to a number (handles "$1,234.50" etc). Returns 0 if unparseable.
+const priceNum = (v) => { if(v===null||v===undefined||v==="") return 0; const n=Number(String(v).replace(/[$,]/g,"")); return isNaN(n)?0:n; };
+// Extended cost of an adjustment = unit price × variance (signed). Returns a number.
+const extCost = (unitPrice, variance) => (variance===null||variance===undefined) ? 0 : priceNum(unitPrice) * variance;
+// Format a signed dollar amount, e.g. -$12.50 / +$8.00 / $0.00
+const fmtMoney = (n) => `${n<0?"-":""}$${Math.abs(n).toFixed(2)}`;
 
 function Pill({ adj })          { return <span style={PILL(adj)}>{adj>0?"+":""}{adj}</span>; }
 function Badge({ label, color }){ return <span style={BADGE(color)}>{label}</span>; }
@@ -976,7 +982,7 @@ function App() {
   };
   const roleLbl=(r)=>r==="admin"?"Manager":r==="lead"?"Lead":"Worker";
   const roleClr=(r)=>r==="admin"?C.red:r==="lead"?C.warn:C.muted;
-  const expList=(list)=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(list.items.map(i=>({Part:i.partNum,Desc:i.description,Loc:i.location,Counted:i.countedQty||"",Status:i.status,At:i.countedAt||"",Note:i.note}))),"Count"); XLSX.writeFile(wb,`count_${list.name.replace(/\s/g,"_")}.xlsx`); };
+  const expList=(list)=>{ const wb=XLSX.utils.book_new(); const rows=list.items.map(i=>({Part:i.partNum,Loc:i.location,"Unit Price":i.unitPrice||"",Counted:i.countedQty||"","ERP System":(i.systemQty??""),Adjustment:(i.variance??""),"Ext Cost":(i.variance!==null&&i.variance!==undefined)?Number(extCost(i.unitPrice,i.variance).toFixed(2)):"",Status:i.status,At:i.countedAt||"",Note:i.note})); const total=list.items.reduce((s,i)=>s+extCost(i.unitPrice,i.variance),0); rows.push({Part:"",Loc:"","Unit Price":"",Counted:"","ERP System":"",Adjustment:"TOTAL","Ext Cost":Number(total.toFixed(2)),Status:"",At:"",Note:""}); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Count"); XLSX.writeFile(wb,`count_${list.name.replace(/\s/g,"_")}.xlsx`); };
 
   // ── report ────────────────────────────────────────────────────────────────
   // Report compares WORKER COUNT vs ERP SYSTEM QTY (entered during review)
@@ -988,6 +994,7 @@ function App() {
       partNum:i.partNum, description:i.description, location:i.location, unitPrice:i.unitPrice,
       systemQty:sys, countedQty:cnt,
       variance,
+      extCost: extCost(i.unitPrice, variance),
       correct: sys!==null && variance===0,
       workerName:l.assignedName, listName:l.name, countedAt:i.countedAt, note:i.note,
     };
@@ -996,7 +1003,7 @@ function App() {
   const rFilt=rRows.filter(r=>rptW==="all"||r.workerName===rptW).filter(r=>!rptP||r.partNum.toLowerCase().includes(rptP.toLowerCase())).sort((a,b)=>{const av=typeof a[rptS.col]==="string"?a[rptS.col].toLowerCase():(a[rptS.col]??0),bv=typeof b[rptS.col]==="string"?b[rptS.col].toLowerCase():(b[rptS.col]??0);return av<bv?(rptS.dir==="asc"?-1:1):av>bv?(rptS.dir==="asc"?1:-1):0;});
   const togSort=(col)=>setRptS(s=>({col,dir:s.col===col&&s.dir==="asc"?"desc":"asc"}));
   const si=(col)=>rptS.col===col?(rptS.dir==="asc"?" ▲":" ▼"):"";
-  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Loc:r.location,"Unit Price":r.unitPrice||"","Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
+  const expReport=()=>{ const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rFilt.map(r=>({"Part #":r.partNum,Loc:r.location,"Unit Price":r.unitPrice||"","Worker Count":r.countedQty,"ERP System Qty":r.systemQty??"",Result:r.systemQty===null?"Not Reviewed":(r.correct?"Match":"Adjustment Needed"),Adjustment:r.variance!==null?r.variance:"","Extended Cost":r.variance!==null?Number(r.extCost.toFixed(2)):"",Worker:r.workerName,List:r.listName,"Counted At":r.countedAt,Note:r.note}))),"Report"); XLSX.writeFile(wb,`report_${Date.now()}.xlsx`); };
 
   // ── styles ────────────────────────────────────────────────────────────────
   const pad  = mob?16:24;
@@ -1702,6 +1709,8 @@ function App() {
             </div>
             {history.length===0?(<div style={CARD}><div style={{ color:C.muted }}>No sessions yet.</div></div>):history.map(list=>{
               const cnt=list.items.filter(i=>i.status==="counted").length;
+              const sessionExt=list.items.reduce((s,i)=>s+extCost(i.unitPrice, i.variance),0);
+              const hasAdj=list.items.some(i=>i.variance!==null&&i.variance!==undefined&&i.variance!==0);
               return (
                 <div key={list.id} style={{ ...FLAT,marginBottom:14 }}>
                   <div style={{ display:"flex",alignItems:mob?"flex-start":"center",justifyContent:"space-between",marginBottom:14,gap:10,flexDirection:mob?"column":"row" }}>
@@ -1711,27 +1720,37 @@ function App() {
                     </div>
                     <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
                       <span style={{ fontSize:11,color:C.ok,fontWeight:700 }}>{cnt}/{list.items.length} counted</span>
+                      {hasAdj && <Badge label={`Adj ${fmtMoney(sessionExt)}`} color={sessionExt<0?C.err:C.ok}/>}
                       <button style={{ ...BT("out"),fontSize:mob?12:11,padding:mob?"8px 14px":"5px 12px" }} onClick={()=>expList(list)}>↓ Export</button>
                     </div>
                   </div>
                   <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?11:12,minWidth:mob?460:"auto" }}>
-                      <thead><tr>{["Part #","Loc","Counted","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"7px 9px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?11:12,minWidth:mob?520:"auto" }}>
+                      <thead><tr>{["Part #","Loc","Unit Price","Counted","Adj","Ext Cost","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"7px 9px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {list.items.map(i=>(
+                        {list.items.map(i=>{ const ec=extCost(i.unitPrice,i.variance); const hasV=i.variance!==null&&i.variance!==undefined; return (
                           <tr key={i.id}>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht }}>{i.partNum}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{i.location||"—"}</td>
+                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(i.unitPrice)}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht }}>{i.countedQty||"—"}</td>
+                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{hasV&&i.variance!==0?<Pill adj={i.variance}/>:hasV?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
+                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:!hasV||i.variance===0?C.muted:ec<0?C.err:C.ok }}>{!hasV?"—":fmtMoney(ec)}</td>
                             <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}` }}>
                               <span style={{ width:7,height:7,borderRadius:"50%",display:"inline-block",marginRight:5,background:i.status==="counted"?C.ok:i.status==="skipped"?C.warn:C.bdr }}/>
                               <span style={{ fontSize:9,color:C.muted,textTransform:"uppercase",fontWeight:700 }}>{i.status}</span>
                             </td>
                           </tr>
-                        ))}
+                        );})}
                       </tbody>
                     </table>
                   </div>
+                  {hasAdj && (
+                    <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,marginTop:10,padding:"9px 14px",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center" }}>
+                      <span style={{ fontSize:10,fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em" }}>Total Extended Cost of Adjustments:</span>
+                      <span style={{ fontSize:16,fontWeight:900,color:sessionExt<0?C.err:sessionExt>0?C.ok:C.wht }}>{fmtMoney(sessionExt)}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1742,13 +1761,18 @@ function App() {
           <div>
             <div style={PT}><span style={RB}/>Count Report</div>
             <div style={PS}>Worker count vs ERP system qty — matches and adjustments</div>
-            {(()=>{ const rev=rFilt.filter(r=>r.systemQty!==null),match=rev.filter(r=>r.correct).length,ap=rev.length>0?Math.round((match/rev.length)*100):null,ac=ap===null?C.muted:ap>=95?C.ok:ap>=80?C.warn:C.err,pos=rFilt.filter(r=>r.variance>0).length,neg=rFilt.filter(r=>r.variance<0).length;
+            {(()=>{ const rev=rFilt.filter(r=>r.systemQty!==null),match=rev.filter(r=>r.correct).length,ap=rev.length>0?Math.round((match/rev.length)*100):null,ac=ap===null?C.muted:ap>=95?C.ok:ap>=80?C.warn:C.err,pos=rFilt.filter(r=>r.variance>0).length,neg=rFilt.filter(r=>r.variance<0).length,netExt=rFilt.reduce((s,r)=>s+(r.extCost||0),0),absExt=rFilt.reduce((s,r)=>s+Math.abs(r.extCost||0),0);
               return (
                 <>
-                  <div style={SG(5)}>
-                    {[["Counted",rFilt.length,C.red],["% Match",ap!==null?`${ap}%`:"—",ac],["Adjustments",rFilt.filter(r=>r.variance!==0&&r.variance!==null).length,C.warn],["Surplus",pos,C.ok],["Shortage",neg,neg>0?C.err:C.muted]].map(([l,v,cl])=>(
-                      <div key={l} style={SB(cl)}><div style={{ fontSize:mob?24:28,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:3 }}>{v}</div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div></div>
+                  <div style={SG(3)}>
+                    {[["Counted",rFilt.length,C.red],["% Match",ap!==null?`${ap}%`:"—",ac],["Adjustments",rFilt.filter(r=>r.variance!==0&&r.variance!==null).length,C.warn],["Surplus",pos,C.ok],["Shortage",neg,neg>0?C.err:C.muted],["Net $ Adjusted",fmtMoney(netExt),netExt<0?C.err:netExt>0?C.ok:C.muted]].map(([l,v,cl])=>(
+                      <div key={l} style={SB(cl)}><div style={{ fontSize:mob?22:26,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:3 }}>{v}</div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div></div>
                     ))}
+                  </div>
+                  <div style={{ ...FLAT,marginBottom:14,display:"flex",gap:24,flexWrap:"wrap",alignItems:"center" }}>
+                    <div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:2 }}>Net Extended Cost Impact</div><div style={{ fontSize:mob?22:26,fontWeight:900,color:netExt<0?C.err:netExt>0?C.ok:C.wht }}>{fmtMoney(netExt)}</div></div>
+                    <div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:2 }}>Total $ Moved (abs)</div><div style={{ fontSize:mob?22:26,fontWeight:900,color:C.lt }}>{fmtMoney(absExt)}</div></div>
+                    <div style={{ fontSize:11,color:C.muted,maxWidth:260,lineHeight:1.5 }}>Net = sum of (unit price × adjustment). Positive = surplus value found, negative = shortage.</div>
                   </div>
                   {rWkrs.length>0&&(
                     <div style={{ ...FLAT,marginBottom:14 }}>
@@ -1787,7 +1811,7 @@ function App() {
               <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
                 <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
                   <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?620:"auto" }}>
-                    <thead><tr>{[["partNum","Part #"],["location","Loc"],["unitPrice","Unit Price"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
+                    <thead><tr>{[["partNum","Part #"],["location","Loc"],["unitPrice","Unit Price"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["extCost","Ext Cost"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
                     <tbody>
                       {rFilt.map((r,i)=>(
                         <tr key={i} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
@@ -1798,6 +1822,7 @@ function App() {
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.systemQty===null?C.muted:r.correct?C.ok:C.err }}>{r.systemQty===null?"Not reviewed":r.correct?"✓ Match":"✗ Adjust"}</span></td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{r.variance!==null&&r.variance!==0?<Pill adj={r.variance}/>:r.variance===0?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
+                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:r.variance===null||r.variance===0?C.muted:r.extCost<0?C.err:C.ok }}>{r.variance===null?"—":fmtMoney(r.extCost)}</td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><div style={{ display:"flex",alignItems:"center",gap:6 }}><Avtr name={r.workerName} sz={22}/><span style={{ fontWeight:700,color:C.lt,fontSize:mob?11:12 }}>{r.workerName}</span></div></td>
                           <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.muted,fontSize:10,whiteSpace:"nowrap" }}>{r.countedAt||"—"}</td>
                         </tr>
