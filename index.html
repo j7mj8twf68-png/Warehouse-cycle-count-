@@ -21,12 +21,56 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script type="text/babel" data-presets="react">
+<!-- Error overlay so failures never show a blank screen -->
+<script>
+  window.__bootError = function(msg){
+    document.getElementById('root').innerHTML =
+      '<div style="font-family:-apple-system,Arial,sans-serif;color:#fff;background:#111;min-height:100vh;padding:24px;font-size:14px;line-height:1.6">'
+      + '<div style="color:#C8102E;font-weight:900;font-size:18px;margin-bottom:12px">AMBAC Count — Load Error</div>'
+      + '<div style="color:#ccc">' + msg + '</div>'
+      + '<div style="color:#888;margin-top:16px;font-size:12px">Try: pull down to refresh, or check your internet connection.</div></div>';
+  };
+  window.addEventListener('error', function(e){
+    if(e && e.message) window.__bootError('Script error: ' + e.message);
+  });
+</script>
+
+<!-- Libraries from jsDelivr (reliable on iOS Safari) -->
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js" crossorigin></script>
+
+<script>
+  // Verify all libraries loaded before compiling the app
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      var missing = [];
+      if(!window.React)      missing.push('React');
+      if(!window.ReactDOM)   missing.push('ReactDOM');
+      if(!window.supabase)   missing.push('Supabase');
+      if(!window.XLSX)       missing.push('XLSX');
+      if(!window.Babel)      missing.push('Babel');
+      if(missing.length){
+        window.__bootError('Could not load: ' + missing.join(', ') + '. A network or content-blocker may be preventing these. Try Safari without content blockers, or reload.');
+        return;
+      }
+      // Compile and run the app
+      try {
+        var code = document.getElementById('app-source').textContent;
+        var out = Babel.transform(code, { presets: ['react'] }).code;
+        var s = document.createElement('script');
+        s.textContent = out;
+        document.body.appendChild(s);
+      } catch(err) {
+        window.__bootError('Compile error: ' + (err && err.message ? err.message : err));
+      }
+    }, 100);
+  });
+</script>
+
+<script type="text/plain" id="app-source">
 // ════════════════════════════════════════════════════════════════════
 //  CONFIGURATION — replace with your Supabase credentials
 //  Get them from: supabase.com → Your Project → Settings → API
