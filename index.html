@@ -831,7 +831,7 @@ export default function App() {
   };
 
   // ── SUBMIT — receives final items directly from WorkerCountDeck ───────────
-  const handleSubmit = (finalItems) => {
+  const handleSubmit = async (finalItems) => {
     const listMeta = lists.find(l=>l.id===activeId);
     if(!listMeta){showToast("List not found","err");return;}
     const done=finalItems.filter(i=>i.status!=="pending");
