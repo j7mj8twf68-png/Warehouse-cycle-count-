@@ -260,7 +260,7 @@ function PinPad({ workers, onSuccess }) {
   const mob = useWidth() < 600;
 
   const roleColor = (r)=> r==="admin"?C.red : r==="lead"?C.warn : C.mid;
-  const roleLbl   = (r)=> r==="admin"?"Manager" : r==="lead"?"Lead" : "Worker";
+  const roleLbl   = (r)=> r==="admin"?"Manager" : r==="lead"?"Lead" : "Supply Chain Specialist";
 
   // sort: admins, then leads, then workers
   const order = { admin:0, lead:1, worker:2 };
@@ -1005,7 +1005,7 @@ function App() {
     if(error){showToast("Failed: "+error.message,"err");return;}
     showToast(`Updated ${edName.trim()}`); cancelEdit();
   };
-  const roleLbl=(r)=>r==="admin"?"Manager":r==="lead"?"Lead":"Worker";
+  const roleLbl=(r)=>r==="admin"?"Manager":r==="lead"?"Lead":"Supply Chain Specialist";
   const roleClr=(r)=>r==="admin"?C.red:r==="lead"?C.warn:C.muted;
   const expList=(list)=>{ const wb=XLSX.utils.book_new(); const rows=list.items.map(i=>({Part:i.partNum,Loc:i.location,"Unit Price":i.unitPrice||"",Counted:i.countedQty||"","ERP System":(i.systemQty??""),Adjustment:(i.variance??""),"Ext Cost":(i.variance!==null&&i.variance!==undefined)?Number(extCost(i.unitPrice,i.variance).toFixed(2)):"",Status:i.status,At:i.countedAt||"",Note:i.note})); const total=list.items.reduce((s,i)=>s+extCost(i.unitPrice,i.variance),0); rows.push({Part:"",Loc:"","Unit Price":"",Counted:"","ERP System":"",Adjustment:"TOTAL","Ext Cost":Number(total.toFixed(2)),Status:"",At:"",Note:""}); XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Count"); XLSX.writeFile(wb,`count_${list.name.replace(/\s/g,"_")}.xlsx`); };
 
@@ -1063,7 +1063,7 @@ function App() {
   const NAV=isAdmin?aN:wN;
   const AK =isAdmin?tab:wtab;
   const SA =isAdmin?setTab:(k)=>{ if(k==="lists")setActiveId(null); setWtab(k); };
-  const roleLabel = user.role==="admin"?"Manager":user.role==="lead"?"Lead":"Worker";
+  const roleLabel = user.role==="admin"?"Manager":user.role==="lead"?"Lead":"Supply Chain Specialist";
 
   const Header=()=>(
     <header style={{ background:`linear-gradient(180deg, ${C.dk} 0%, ${C.blk} 100%)`,borderBottom:`3px solid ${C.red}`,padding:`0 ${pad}px`,display:"flex",alignItems:"stretch",minHeight:56,fontFamily:FAM,boxShadow:"0 2px 12px rgba(0,0,0,0.4)",position:"sticky",top:0,zIndex:50 }}>
@@ -1513,7 +1513,7 @@ function App() {
                 <div><label style={LBL}>PIN (4–6 digits)</label><input style={INP(mob)} placeholder="e.g. 4729" type="text" inputMode="numeric" maxLength={6} value={nwPin} onChange={e=>setNwPin(e.target.value.replace(/\D/g,""))}/></div>
                 <div><label style={LBL}>Title</label>
                   <select style={INP(mob)} value={nwRole} onChange={e=>setNwRole(e.target.value)}>
-                    <option value="worker">Worker</option>
+                    <option value="worker">Supply Chain Specialist</option>
                     <option value="lead">Lead</option>
                     <option value="admin">Manager</option>
                   </select>
@@ -1531,7 +1531,7 @@ function App() {
                         <div><label style={LBL}>PIN</label><input style={INP(mob)} type="text" inputMode="numeric" maxLength={6} value={edPin} onChange={e=>setEdPin(e.target.value.replace(/\D/g,""))}/></div>
                         <div><label style={LBL}>Title</label>
                           <select style={{ ...INP(mob),opacity:w.id==="admin"?0.5:1 }} value={edRole} disabled={w.id==="admin"} onChange={e=>setEdRole(e.target.value)}>
-                            <option value="worker">Worker</option>
+                            <option value="worker">Supply Chain Specialist</option>
                             <option value="lead">Lead</option>
                             <option value="admin">Manager</option>
                           </select>
