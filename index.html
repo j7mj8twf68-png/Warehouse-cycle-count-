@@ -1070,6 +1070,24 @@ function App() {
     };
   }));
   const rWkrs=[...new Set(history.map(l=>l.assignedName))].sort();
+  // ── Monthly net extended cost rollup ──────────────────────────────────────
+  // Group completed counts by the month they were completed/submitted.
+  const monthAgg = (()=>{
+    const map = {}; // "2026-06" -> { label, net, abs, count }
+    const parseDate = (s)=>{ const d=new Date(s); return isNaN(d)?null:d; };
+    history.forEach(l=>{
+      const d = parseDate(l.completedAt||l.submittedAt||l.createdAt);
+      if(!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+      const label = d.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+      if(!map[key]) map[key] = { key, label, net:0, abs:0, count:0, sortNum:d.getFullYear()*12+d.getMonth() };
+      const listNet = l.items.reduce((s,i)=>s+extCost(i.unitPrice, i.variance),0);
+      map[key].net += listNet;
+      map[key].abs += l.items.reduce((s,i)=>s+Math.abs(extCost(i.unitPrice, i.variance)),0);
+      map[key].count += 1;
+    });
+    return Object.values(map).sort((a,b)=>b.sortNum-a.sortNum); // newest month first
+  })();
   const rFilt=rRows.filter(r=>rptW==="all"||r.workerName===rptW).filter(r=>!rptP||r.partNum.toLowerCase().includes(rptP.toLowerCase())).sort((a,b)=>{const av=typeof a[rptS.col]==="string"?a[rptS.col].toLowerCase():(a[rptS.col]??0),bv=typeof b[rptS.col]==="string"?b[rptS.col].toLowerCase():(b[rptS.col]??0);return av<bv?(rptS.dir==="asc"?-1:1):av>bv?(rptS.dir==="asc"?1:-1):0;});
   const togSort=(col)=>setRptS(s=>({col,dir:s.col===col&&s.dir==="asc"?"desc":"asc"}));
   const si=(col)=>rptS.col===col?(rptS.dir==="asc"?" ▲":" ▼"):"";
@@ -1869,6 +1887,21 @@ function App() {
                             <div style={{ fontSize:10,color:C.muted }}>{wc}/{wrev.length} matched · {wr.length} total</div>
                           </div>
                         );})}
+                      </div>
+                    </div>
+                  )}
+                  {monthAgg.length>0&&(
+                    <div style={{ ...FLAT,marginBottom:14 }}>
+                      <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:4 }}>Net Adjustment by Month</div>
+                      <div style={{ fontSize:11,color:C.muted,marginBottom:14 }}>Total extended cost of adjustments for all completed counts, grouped by month</div>
+                      <div style={{ display:"grid",gridTemplateColumns:mob?"1fr 1fr":tabW?"repeat(3,1fr)":"repeat(4,1fr)",gap:10 }}>
+                        {monthAgg.map(m=>(
+                          <div key={m.key} style={{ background:C.blk,border:`1px solid ${C.bdr}`,borderTop:`3px solid ${m.net<0?C.err:m.net>0?C.ok:C.bdr}`,borderRadius:8,padding:"12px 14px" }}>
+                            <div style={{ fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700,marginBottom:6 }}>{m.label}</div>
+                            <div style={{ fontSize:mob?22:24,fontWeight:900,color:m.net<0?C.err:m.net>0?C.ok:C.wht,lineHeight:1,marginBottom:6 }}>{fmtMoney(m.net)}</div>
+                            <div style={{ fontSize:10,color:C.muted }}>{m.count} count{m.count!==1?"s":""} · {fmtMoney(m.abs)} moved</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
