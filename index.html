@@ -823,6 +823,38 @@ function App() {
     return ()=>{ clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
   },[loaded, user, tab, wtab, activeId]);
 
+  // ── Auto-submit active lists at/after 4PM local time ─────────────────────
+  // Runs while the app is open. Any unsubmitted list with at least one counted
+  // item gets submitted automatically once it's 4PM or later. Each list is only
+  // auto-submitted once (guarded by an in-memory set keyed by list id + date).
+  const autoSubmitted = useRef(new Set());
+  useEffect(()=>{
+    if(!loaded) return;
+    const checkAutoSubmit = async()=>{
+      const now = new Date();
+      if(now.getHours() < 16) return; // before 4PM, do nothing
+      const dayKey = now.toDateString();
+      const active = lists.filter(l=>!l.submitted && l.items.some(i=>i.status==="counted"));
+      for(const l of active){
+        const guardKey = `${l.id}|${dayKey}`;
+        if(autoSubmitted.current.has(guardKey)) continue;
+        autoSubmitted.current.add(guardKey);
+        const at = nowStr();
+        try {
+          await DB.submitList(l.id, l.items, at);
+          // tag the name so managers can tell it was auto-submitted
+          if(!l.name.includes("(Auto 4PM)")){
+            await SB.from('assigned_lists').update({ name:`${l.name} (Auto 4PM)` }).eq('id', l.id);
+          }
+        } catch(e){ console.warn("Auto-submit failed for", l.id, e); }
+      }
+      if(active.length){ const d=await DB.load(); setLists(d.lists); }
+    };
+    checkAutoSubmit();
+    const id = setInterval(checkAutoSubmit, 60000);
+    return ()=>clearInterval(id);
+  },[loaded, lists]);
+
   // ── parse file — adds to invFiles, doesn't replace ───────────────────────
   const parseFile = useCallback((file)=>{
     if(!file) return;
@@ -1109,6 +1141,12 @@ function App() {
           <div>
             <div style={PT}><span style={RB}/>My Count Lists</div>
             <div style={PS}>Tap a list to begin counting</div>
+            {myLists.length>0&&(
+              <div style={{ background:C.navyGl,border:`1px solid ${C.bdr}`,borderLeft:`3px solid ${C.warn}`,borderRadius:8,padding:"9px 14px",marginBottom:14,fontSize:12,color:C.lt,display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontSize:15 }}>⏰</span>
+                <span>Counts are automatically submitted at <strong style={{ color:C.warn }}>4:00 PM</strong> — finish and submit before then.</span>
+              </div>
+            )}
             {myLists.length===0?(
               <div style={{ ...CARD,textAlign:"center",padding:"32px 20px" }}>
                 <div style={{ fontSize:40,marginBottom:12 }}>✅</div>
@@ -1629,6 +1667,10 @@ function App() {
             <div>
               <div style={PT}><span style={RB}/>Submitted Counts</div>
               <div style={PS}>Review counts, enter what the ERP system shows, then mark completed</div>
+              <div style={{ background:C.navyGl,border:`1px solid ${C.bdr}`,borderLeft:`3px solid ${C.warn}`,borderRadius:8,padding:"9px 14px",marginBottom:16,fontSize:12,color:C.lt,display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ fontSize:15 }}>⏰</span>
+                <span>Any active count not submitted by <strong style={{ color:C.warn }}>4:00 PM</strong> is automatically submitted and tagged <strong style={{ color:C.lt }}>(Auto 4PM)</strong>.</span>
+              </div>
 
               {pendingReview.length===0?(
                 <div style={{ ...CARD,textAlign:"center",padding:"32px 20px" }}>
