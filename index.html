@@ -267,7 +267,7 @@ function PinPad({ workers, onSuccess }) {
   const sorted = [...workers].sort((a,b)=>(order[a.role]??3)-(order[b.role]??3) || a.name.localeCompare(b.name));
 
   const press = (d) => {
-    if (pin.length >= 4) return;
+    if (pin.length >= 6) return;
     const next = pin + d;
     setPin(next); setErr("");
     if (next.length === selected.pin.length) {
@@ -275,6 +275,18 @@ function PinPad({ workers, onSuccess }) {
       else { setShk(true); setErr("Incorrect PIN"); setTimeout(()=>{ setShk(false); setPin(""); }, 800); }
     }
   };
+
+  // Physical keyboard support on the PIN step: digits type, Backspace deletes, Esc goes back
+  useEffect(()=>{
+    if(!selected) return;
+    const onKey = (e)=>{
+      if(e.key>="0" && e.key<="9"){ e.preventDefault(); press(e.key); }
+      else if(e.key==="Backspace"){ e.preventDefault(); setPin(p=>p.slice(0,-1)); setErr(""); }
+      else if(e.key==="Escape"){ e.preventDefault(); setSelected(null); setPin(""); setErr(""); }
+    };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[selected, pin]);
 
   const KS = (sp) => ({ height:mob?78:70, borderRadius:12, background:sp?"transparent":`linear-gradient(180deg, ${C.mid} 0%, ${C.dk} 100%)`, border:`1.5px solid ${C.bdr}`, color:sp?C.muted:C.wht, fontSize:sp?14:(mob?28:24), fontWeight:900, cursor:"pointer", fontFamily:FAM, WebkitTapHighlightColor:"transparent", touchAction:"manipulation", transition:"transform 0.06s" });
 
@@ -323,9 +335,10 @@ function PinPad({ workers, onSuccess }) {
             <div style={{ fontSize:13, color:C.lt }}>Enter your PIN</div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:16, justifyContent:"center", marginBottom:24 }}>
-          {[0,1,2,3].map(i=><div key={i} style={{ width:16, height:16, borderRadius:"50%", background:i<pin.length?C.red:C.mid, border:`2px solid ${i<pin.length?C.red:C.bdr}`, transition:"all 0.15s" }}/>)}
+        <div style={{ display:"flex", gap:14, justifyContent:"center", marginBottom:24 }}>
+          {Array.from({length:selected.pin.length}).map((_,i)=><div key={i} style={{ width:16, height:16, borderRadius:"50%", background:i<pin.length?C.red:C.mid, border:`2px solid ${i<pin.length?C.red:C.bdr}`, transition:"all 0.15s" }}/>)}
         </div>
+        <div style={{ textAlign:"center", marginBottom:14, fontSize:11, color:C.muted, letterSpacing:"0.05em" }}>Use the keypad or your keyboard</div>
         <div style={{ height:24, textAlign:"center", marginBottom:14 }}>
           {err && <span style={{ fontSize:13, color:C.err, fontWeight:700 }}>{err}</span>}
         </div>
