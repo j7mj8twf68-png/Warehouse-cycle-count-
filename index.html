@@ -622,7 +622,7 @@ function TxnTab({ txnList, setTxnList, history, assignedLists, mob, toast }) {
   const doResync=async()=>{ const submitted=assignedLists.filter(l=>l.submitted); const existing=new Set(txnList.map(t=>t.sourceListId)); const byList={}; submitted.filter(l=>!existing.has(l.id)).forEach(l=>{ byList[l.id]=l.items.filter(i=>i.status==="counted").map(i=>({id:uid(),partNum:i.partNum,description:i.description,location:i.location,workerQty:Number(i.countedQty),workerName:l.assignedName,listName:l.name,countedAt:i.countedAt,note:i.note,systemQty:"",adjustment:null,status:"pending",postedAt:null,sourceListId:l.id})); }); const total=Object.values(byList).reduce((s,v)=>s+v.length,0); if(!total){toast("Already up to date");return;} for(const g of Object.values(byList)) if(g.length) await DB.insertTxns(g); toast(`Synced ${total} transactions`); };
 
   const TH = ({h}) => <th style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>;
-  const TD = ({children,style}) => <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,verticalAlign:"middle",...style }}>{children}</td>;
+  const TD = ({children,style}) => <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,verticalAlign:"middle",...style }}>{children}</td>;
 
   return (
     <div style={{ fontFamily:FAM }}>
@@ -1099,7 +1099,7 @@ function App() {
   const RB   = { width:4,height:mob?20:26,background:C.red,borderRadius:2,display:"inline-block",flexShrink:0 };
   const PS   = { fontSize:12,color:C.muted,letterSpacing:"0.07em",marginBottom:mob?16:24 };
   const SG   = (n)=>({ display:"grid",gridTemplateColumns:mob?"1fr 1fr":tabW?`repeat(${Math.min(n,3)},1fr)`:`repeat(${n},1fr)`,gap:mob?10:12,marginBottom:mob?14:20 });
-  const SB   = (c)=>({ background:C.dk,border:`1px solid ${C.bdr}`,borderLeft:`4px solid ${c}`,borderRadius:6,padding:mob?"12px 14px":"14px 16px" });
+  const SB   = (c)=>({ background:C.dk,border:`1px solid ${C.bdr}`,borderLeft:`5px solid ${c}`,borderRadius:10,padding:mob?"16px 16px":"18px 20px" });
   const TC   = { display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:mob?12:16,marginBottom:mob?12:16 };
   const MPAD = { flex:1,padding:`${mob?18:28}px ${pad}px`,maxWidth:980,margin:"0 auto",width:"100%",boxSizing:"border-box",paddingBottom:mob?90:28,fontFamily:FAM };
 
@@ -1246,7 +1246,7 @@ function App() {
   );
 
   // ── ADMIN VIEW ────────────────────────────────────────────────────────────
-  const TH=({h,col})=><th style={{ textAlign:"left",padding:"8px 9px",background:C.blk,color:rptS.col===col?C.red:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none" }} onClick={()=>col&&togSort(col)}>{h}{col?si(col):""}</th>;
+  const TH=({h,col})=><th style={{ textAlign:"left",padding:"11px 11px",background:C.blk,color:rptS.col===col?C.red:C.muted,fontSize:11,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none" }} onClick={()=>col&&togSort(col)}>{h}{col?si(col):""}</th>;
 
   return (
     <div style={{ minHeight:"100vh",background:C.blk,color:C.txt,display:"flex",flexDirection:"column" }}>
@@ -1734,10 +1734,10 @@ function App() {
 
                         {/* Parts table */}
                         <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", marginBottom:14 }}>
-                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:mob?12:13, minWidth:mob?480:"auto" }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:mob?13:15, minWidth:mob?520:"auto" }}>
                             <thead>
                               <tr>{["Part #","Location","Unit Price","Counted","System (ERP)","Variance","Recount"].map(h=>(
-                                <th key={h} style={{ textAlign:"left",padding:"8px 10px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
+                                <th key={h} style={{ textAlign:"left",padding:"11px 11px",background:C.blk,color:C.muted,fontSize:11,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>
                               ))}</tr>
                             </thead>
                             <tbody>
@@ -1746,24 +1746,24 @@ function App() {
                                 const vc = v===null||v===undefined?C.muted:v===0?C.ok:v>0?C.warn:C.err;
                                 return (
                                   <tr key={it.id}>
-                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{it.partNum}</td>
-                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{it.location||"—"}</td>
-                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(it.unitPrice)}</td>
-                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:15 }}>{it.countedQty}</td>
-                                    <td style={{ padding:"6px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                    <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{it.partNum}</td>
+                                    <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{it.location||"—"}</td>
+                                    <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(it.unitPrice)}</td>
+                                    <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:15 }}>{it.countedQty}</td>
+                                    <td style={{ padding:"9px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
                                       <input type="number" inputMode="numeric" placeholder="—"
                                         value={it.systemQty??""}
                                         style={{ background:C.blk,border:`1px solid ${it.systemQty!==undefined&&it.systemQty!==""?vc:C.bdr}`,color:C.wht,borderRadius:4,padding:"6px 8px",fontSize:14,fontWeight:700,textAlign:"center",width:80,fontFamily:FAM }}
                                         onChange={e=>setSysQty(list.id, it.id, e.target.value)}/>
                                     </td>
-                                    <td style={{ padding:"8px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                    <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
                                       {v===null||v===undefined
                                         ? <span style={{ color:C.muted }}>—</span>
                                         : v===0
                                           ? <Badge label="✓ Match" color={C.ok}/>
                                           : <span style={{ ...PILL(v) }}>{v>0?"+":""}{v}</span>}
                                     </td>
-                                    <td style={{ padding:"6px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
+                                    <td style={{ padding:"9px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>
                                       <button style={{ ...BT("ghost"), fontSize:11, padding:"5px 12px", color:C.warn, borderColor:C.warn, border:`1px solid ${C.warn}55`, borderRadius:4 }}
                                         onClick={()=>recountItem(list, it)}>↻ Recount</button>
                                     </td>
@@ -1823,18 +1823,18 @@ function App() {
                     </div>
                   </div>
                   <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?11:12,minWidth:mob?520:"auto" }}>
-                      <thead><tr>{["Part #","Loc","Unit Price","Counted","Adj","Ext Cost","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"7px 9px",background:C.blk,color:C.muted,fontSize:9,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
+                    <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?13:14,minWidth:mob?540:"auto" }}>
+                      <thead><tr>{["Part #","Loc","Unit Price","Counted","Adj","Ext Cost","Status"].map(h=><th key={h} style={{ textAlign:"left",padding:"10px 10px",background:C.blk,color:C.muted,fontSize:11,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",borderBottom:`2px solid ${C.red}`,whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead>
                       <tbody>
                         {list.items.map(i=>{ const ec=extCost(i.unitPrice,i.variance); const hasV=i.variance!==null&&i.variance!==undefined; return (
                           <tr key={i.id}>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht }}>{i.partNum}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{i.location||"—"}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(i.unitPrice)}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht }}>{i.countedQty||"—"}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{hasV&&i.variance!==0?<Pill adj={i.variance}/>:hasV?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:!hasV||i.variance===0?C.muted:ec<0?C.err:C.ok }}>{!hasV?"—":fmtMoney(ec)}</td>
-                            <td style={{ padding:"7px 9px",borderBottom:`1px solid ${C.mid}` }}>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht }}>{i.partNum}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,color:C.warn }}>{i.location||"—"}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(i.unitPrice)}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht }}>{i.countedQty||"—"}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{hasV&&i.variance!==0?<Pill adj={i.variance}/>:hasV?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:!hasV||i.variance===0?C.muted:ec<0?C.err:C.ok }}>{!hasV?"—":fmtMoney(ec)}</td>
+                            <td style={{ padding:"10px 10px",borderBottom:`1px solid ${C.mid}` }}>
                               <span style={{ width:7,height:7,borderRadius:"50%",display:"inline-block",marginRight:5,background:i.status==="counted"?C.ok:i.status==="skipped"?C.warn:C.bdr }}/>
                               <span style={{ fontSize:9,color:C.muted,textTransform:"uppercase",fontWeight:700 }}>{i.status}</span>
                             </td>
@@ -1845,8 +1845,8 @@ function App() {
                   </div>
                   {hasAdj && (
                     <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,marginTop:10,padding:"9px 14px",display:"flex",justifyContent:"flex-end",gap:8,alignItems:"center" }}>
-                      <span style={{ fontSize:10,fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em" }}>Total Extended Cost of Adjustments:</span>
-                      <span style={{ fontSize:16,fontWeight:900,color:sessionExt<0?C.err:sessionExt>0?C.ok:C.wht }}>{fmtMoney(sessionExt)}</span>
+                      <span style={{ fontSize:12,fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em" }}>Total Extended Cost of Adjustments:</span>
+                      <span style={{ fontSize:22,fontWeight:900,color:sessionExt<0?C.err:sessionExt>0?C.ok:C.wht }}>{fmtMoney(sessionExt)}</span>
                     </div>
                   )}
                 </div>
@@ -1864,13 +1864,13 @@ function App() {
                 <>
                   <div style={SG(3)}>
                     {[["Counted",rFilt.length,C.red],["% Match",ap!==null?`${ap}%`:"—",ac],["Adjustments",rFilt.filter(r=>r.variance!==0&&r.variance!==null).length,C.warn],["Surplus",pos,C.ok],["Shortage",neg,neg>0?C.err:C.muted],["Net $ Adjusted",fmtMoney(netExt),netExt<0?C.err:netExt>0?C.ok:C.muted]].map(([l,v,cl])=>(
-                      <div key={l} style={SB(cl)}><div style={{ fontSize:mob?22:26,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:3 }}>{v}</div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div></div>
+                      <div key={l} style={SB(cl)}><div style={{ fontSize:mob?28:34,fontWeight:900,color:C.wht,lineHeight:1,marginBottom:5 }}>{v}</div><div style={{ fontSize:mob?11:12,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700 }}>{l}</div></div>
                     ))}
                   </div>
-                  <div style={{ ...FLAT,marginBottom:14,display:"flex",gap:24,flexWrap:"wrap",alignItems:"center" }}>
-                    <div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:2 }}>Net Extended Cost Impact</div><div style={{ fontSize:mob?22:26,fontWeight:900,color:netExt<0?C.err:netExt>0?C.ok:C.wht }}>{fmtMoney(netExt)}</div></div>
-                    <div><div style={{ fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:2 }}>Total $ Moved (abs)</div><div style={{ fontSize:mob?22:26,fontWeight:900,color:C.lt }}>{fmtMoney(absExt)}</div></div>
-                    <div style={{ fontSize:11,color:C.muted,maxWidth:260,lineHeight:1.5 }}>Net = sum of (unit price × adjustment). Positive = surplus value found, negative = shortage.</div>
+                  <div style={{ ...FLAT,marginBottom:14,display:"flex",gap:28,flexWrap:"wrap",alignItems:"center" }}>
+                    <div><div style={{ fontSize:mob?11:12,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:4 }}>Net Extended Cost Impact</div><div style={{ fontSize:mob?30:38,fontWeight:900,color:netExt<0?C.err:netExt>0?C.ok:C.wht,lineHeight:1 }}>{fmtMoney(netExt)}</div></div>
+                    <div><div style={{ fontSize:mob?11:12,color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:700,marginBottom:4 }}>Total $ Moved (abs)</div><div style={{ fontSize:mob?30:38,fontWeight:900,color:C.lt,lineHeight:1 }}>{fmtMoney(absExt)}</div></div>
+                    <div style={{ fontSize:mob?12:13,color:C.muted,maxWidth:280,lineHeight:1.5 }}>Net = sum of (unit price × adjustment). Positive = surplus value found, negative = shortage.</div>
                   </div>
                   {rWkrs.length>0&&(
                     <div style={{ ...FLAT,marginBottom:14 }}>
@@ -1892,14 +1892,14 @@ function App() {
                   )}
                   {monthAgg.length>0&&(
                     <div style={{ ...FLAT,marginBottom:14 }}>
-                      <div style={{ fontSize:10,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:4 }}>Net Adjustment by Month</div>
-                      <div style={{ fontSize:11,color:C.muted,marginBottom:14 }}>Total extended cost of adjustments for all completed counts, grouped by month</div>
-                      <div style={{ display:"grid",gridTemplateColumns:mob?"1fr 1fr":tabW?"repeat(3,1fr)":"repeat(4,1fr)",gap:10 }}>
+                      <div style={{ fontSize:mob?12:13,fontWeight:900,letterSpacing:"0.18em",color:C.red,textTransform:"uppercase",marginBottom:4 }}>Net Adjustment by Month</div>
+                      <div style={{ fontSize:mob?12:13,color:C.muted,marginBottom:14 }}>Total extended cost of adjustments for all completed counts, grouped by month</div>
+                      <div style={{ display:"grid",gridTemplateColumns:mob?"1fr 1fr":tabW?"repeat(3,1fr)":"repeat(4,1fr)",gap:12 }}>
                         {monthAgg.map(m=>(
-                          <div key={m.key} style={{ background:C.blk,border:`1px solid ${C.bdr}`,borderTop:`3px solid ${m.net<0?C.err:m.net>0?C.ok:C.bdr}`,borderRadius:8,padding:"12px 14px" }}>
-                            <div style={{ fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700,marginBottom:6 }}>{m.label}</div>
-                            <div style={{ fontSize:mob?22:24,fontWeight:900,color:m.net<0?C.err:m.net>0?C.ok:C.wht,lineHeight:1,marginBottom:6 }}>{fmtMoney(m.net)}</div>
-                            <div style={{ fontSize:10,color:C.muted }}>{m.count} count{m.count!==1?"s":""} · {fmtMoney(m.abs)} moved</div>
+                          <div key={m.key} style={{ background:C.blk,border:`1px solid ${C.bdr}`,borderTop:`4px solid ${m.net<0?C.err:m.net>0?C.ok:C.bdr}`,borderRadius:10,padding:mob?"14px 16px":"16px 18px" }}>
+                            <div style={{ fontSize:mob?13:14,color:C.lt,textTransform:"uppercase",letterSpacing:"0.06em",fontWeight:700,marginBottom:8 }}>{m.label}</div>
+                            <div style={{ fontSize:mob?28:32,fontWeight:900,color:m.net<0?C.err:m.net>0?C.ok:C.wht,lineHeight:1,marginBottom:8 }}>{fmtMoney(m.net)}</div>
+                            <div style={{ fontSize:mob?12:12,color:C.muted }}>{m.count} count{m.count!==1?"s":""} · {fmtMoney(m.abs)} moved</div>
                           </div>
                         ))}
                       </div>
@@ -1923,27 +1923,27 @@ function App() {
             {rRows.length===0?(<div style={CARD}><div style={{ color:C.muted }}>No completed counts yet. Mark counts completed in the Submitted tab to see them here.</div></div>):rFilt.length===0?(<div style={FLAT}><div style={{ color:C.muted }}>No results.</div></div>):(
               <div style={{ ...FLAT,padding:0,overflow:"hidden" }}>
                 <div style={{ overflowX:"auto",WebkitOverflowScrolling:"touch" }}>
-                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?12:13,minWidth:mob?620:"auto" }}>
+                  <table style={{ width:"100%",borderCollapse:"collapse",fontSize:mob?13:14,minWidth:mob?620:"auto" }}>
                     <thead><tr>{[["partNum","Part #"],["location","Loc"],["unitPrice","Unit Price"],["countedQty","Worker Count"],["systemQty","ERP System"],["correct","Result"],["variance","Adjustment"],["extCost","Ext Cost"],["workerName","Worker"],["countedAt","Date"]].map(([col,lbl])=><TH key={col} h={lbl} col={col}/>)}</tr></thead>
                     <tbody>
                       {rFilt.map((r,i)=>(
                         <tr key={i} style={{ background:i%2===0?"transparent":"rgba(255,255,255,0.018)" }}>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{r.partNum}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{r.location||"—"}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(r.unitPrice)}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:14 }}>{r.countedQty}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.systemQty===null?C.muted:r.correct?C.ok:C.err }}>{r.systemQty===null?"Not reviewed":r.correct?"✓ Match":"✗ Adjust"}</span></td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{r.variance!==null&&r.variance!==0?<Pill adj={r.variance}/>:r.variance===0?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:r.variance===null||r.variance===0?C.muted:r.extCost<0?C.err:C.ok }}>{r.variance===null?"—":fmtMoney(r.extCost)}</td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}` }}><div style={{ display:"flex",alignItems:"center",gap:6 }}><Avtr name={r.workerName} sz={22}/><span style={{ fontWeight:700,color:C.lt,fontSize:mob?11:12 }}>{r.workerName}</span></div></td>
-                          <td style={{ padding:"8px 9px",borderBottom:`1px solid ${C.mid}`,color:C.muted,fontSize:10,whiteSpace:"nowrap" }}>{r.countedAt||"—"}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,fontWeight:900,color:C.wht,whiteSpace:"nowrap" }}>{r.partNum}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,color:C.warn,fontWeight:700 }}>{r.location||"—"}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:C.lt }}>{fmtPrice(r.unitPrice)}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:900,color:C.wht,fontSize:14 }}>{r.countedQty}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",color:r.systemQty===null?C.muted:C.lt,fontWeight:700 }}>{r.systemQty!==null?r.systemQty:"—"}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}` }}><span style={{ fontSize:12,fontWeight:900,color:r.systemQty===null?C.muted:r.correct?C.ok:C.err }}>{r.systemQty===null?"Not reviewed":r.correct?"✓ Match":"✗ Adjust"}</span></td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"center" }}>{r.variance!==null&&r.variance!==0?<Pill adj={r.variance}/>:r.variance===0?<Badge label="0" color={C.ok}/>:<span style={{ color:C.muted }}>—</span>}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,textAlign:"right",fontWeight:700,color:r.variance===null||r.variance===0?C.muted:r.extCost<0?C.err:C.ok }}>{r.variance===null?"—":fmtMoney(r.extCost)}</td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}` }}><div style={{ display:"flex",alignItems:"center",gap:6 }}><Avtr name={r.workerName} sz={22}/><span style={{ fontWeight:700,color:C.lt,fontSize:mob?11:12 }}>{r.workerName}</span></div></td>
+                          <td style={{ padding:"11px 11px",borderBottom:`1px solid ${C.mid}`,color:C.muted,fontSize:10,whiteSpace:"nowrap" }}>{r.countedAt||"—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,padding:"9px 14px",display:"flex",gap:20,flexWrap:"wrap",fontSize:11 }}>
+                <div style={{ background:C.blk,borderTop:`2px solid ${C.bdr}`,padding:"12px 16px",display:"flex",gap:24,flexWrap:"wrap",fontSize:14 }}>
                   <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Total: <span style={{ color:C.wht }}>{rFilt.length}</span></span>
                   {(()=>{ const rev=rFilt.filter(r=>r.systemQty!==null),c=rev.filter(r=>r.correct).length,p=rev.length>0?Math.round((c/rev.length)*100):null,cl=p===null?C.muted:p>=95?C.ok:p>=80?C.warn:C.err; return <span style={{ fontWeight:900,color:C.muted,textTransform:"uppercase",letterSpacing:"0.07em" }}>Match rate: <span style={{ color:cl }}>{p!==null?`${p}%`:"—"}</span> <span style={{ color:C.muted,fontWeight:400 }}>({c}/{rev.length})</span></span>; })()}
                 </div>
